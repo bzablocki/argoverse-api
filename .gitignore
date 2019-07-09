@@ -37,3 +37,9 @@ tests/test_data/tmp
 /sphinx/source
 /docs/.buildinfo
 /docs/_sources
+
+argodataset
+map_files
+.ipynb_checkpoints/
+*.pickle
+.flake8

@@ -45,7 +45,7 @@ Code to plot track label trajectories on a map, for the tracking benchmark.
 
 class DatasetOnMapVisualizer:
     def __init__(
-        self, dataset_dir: str, experiment_prefix: str, use_existing_files: bool = True, log_id: str = None
+            self, dataset_dir: str, experiment_prefix: str, use_existing_files: bool = True, log_id: str = None
     ) -> None:
         """We will cache the accumulated trajectories per city, per log, and per frame
         for the tracking benchmark.
@@ -218,18 +218,21 @@ class DatasetOnMapVisualizer:
                             write_video(image_prefix, output_prefix)
 
     def render_bev_labels_mpl(
-        self,
-        city_name: str,
-        ax: plt.Axes,
-        axis: str,
-        lidar_pts: np.ndarray,
-        local_lane_polygons: np.ndarray,
-        local_das: np.ndarray,
-        log_id: str,
-        timestamp: int,
-        city_to_egovehicle_se3: SE3,
-        avm: ArgoverseMap,
+            self,
+            city_name: str,
+            ax: plt.Axes,
+            axis: str,
+            lidar_pts: np.ndarray,
+            local_lane_polygons: np.ndarray,
+            local_das: np.ndarray,
+            log_id: str,
+            timestamp: int,
+            city_to_egovehicle_se3: SE3,
+            avm: ArgoverseMap,
+            vis_other_objects: bool = True
+
     ) -> None:
+
         """Plot nearby lane polygons and nearby driveable areas (da) on the Matplotlib axes.
 
         Args:
@@ -243,7 +246,9 @@ class DatasetOnMapVisualizer:
             timestamp: In nanoseconds
             city_to_egovehicle_se3: Transformation from egovehicle frame to city frame
             avm: ArgoverseMap instance
+            vis_other_objects: toggle visualization of other objects on the map
         """
+
         if axis is not "city_axis":
             # rendering instead in the egovehicle reference frame
             for da_idx, local_da in enumerate(local_das):
@@ -263,55 +268,57 @@ class DatasetOnMapVisualizer:
             lidar_pts = rotate_polygon_about_pt(lidar_pts, city_to_egovehicle_se3.rotation, np.zeros((3,)))
             draw_point_cloud_bev(ax, lidar_pts)
 
-        objects = self.log_timestamp_dict[log_id][timestamp]
+        if vis_other_objects:
+            objects = self.log_timestamp_dict[log_id][timestamp]
 
-        all_occluded = True
-        for frame_rec in objects:
-            if frame_rec.occlusion_val != IS_OCCLUDED_FLAG:
-                all_occluded = False
-
-        if not all_occluded:
-            for i, frame_rec in enumerate(objects):
-                bbox_city_fr = frame_rec.bbox_city_fr
-                bbox_ego_frame = frame_rec.bbox_ego_frame
-                color = frame_rec.color
-
+            all_occluded = True
+            for frame_rec in objects:
                 if frame_rec.occlusion_val != IS_OCCLUDED_FLAG:
-                    bbox_ego_frame = rotate_polygon_about_pt(
-                        bbox_ego_frame, city_to_egovehicle_se3.rotation, np.zeros((3,))
-                    )
-                    if axis is "city_axis":
-                        plot_bbox_2D(ax, bbox_city_fr, color)
-                        if self.plot_lane_tangent_arrows:
-                            bbox_center = np.mean(bbox_city_fr, axis=0)
-                            tangent_xy, conf = avm.get_lane_direction(
-                                query_xy_city_coords=bbox_center[:2], city_name=city_name
-                            )
-                            dx = tangent_xy[0] * LANE_TANGENT_VECTOR_SCALING
-                            dy = tangent_xy[1] * LANE_TANGENT_VECTOR_SCALING
-                            ax.arrow(bbox_center[0], bbox_center[1], dx, dy, color="r", width=0.5, zorder=2)
-                    else:
-                        plot_bbox_2D(ax, bbox_ego_frame, color)
-                        cuboid_lidar_pts, _ = filter_point_cloud_to_bbox_2D_vectorized(
-                            bbox_ego_frame[:, :2], copy.deepcopy(lidar_pts)
+                    all_occluded = False
+
+            if not all_occluded:
+                for i, frame_rec in enumerate(objects):
+                    bbox_city_fr = frame_rec.bbox_city_fr
+                    bbox_ego_frame = frame_rec.bbox_ego_frame
+                    color = frame_rec.color
+
+                    if frame_rec.occlusion_val != IS_OCCLUDED_FLAG:
+                        bbox_ego_frame = rotate_polygon_about_pt(
+                            bbox_ego_frame, city_to_egovehicle_se3.rotation, np.zeros((3,))
                         )
-                        if cuboid_lidar_pts is not None:
-                            draw_point_cloud_bev(ax, cuboid_lidar_pts, color)
+                        if axis is "city_axis":
+                            plot_bbox_2D(ax, bbox_city_fr, color)
+                            if self.plot_lane_tangent_arrows:
+                                bbox_center = np.mean(bbox_city_fr, axis=0)
+                                tangent_xy, conf = avm.get_lane_direction(
+                                    query_xy_city_coords=bbox_center[:2], city_name=city_name
+                                )
+                                dx = tangent_xy[0] * LANE_TANGENT_VECTOR_SCALING
+                                dy = tangent_xy[1] * LANE_TANGENT_VECTOR_SCALING
+                                ax.arrow(bbox_center[0], bbox_center[1], dx, dy, color="r", width=0.5, zorder=2)
+                        else:
+                            plot_bbox_2D(ax, bbox_ego_frame, color)
+                            cuboid_lidar_pts, _ = filter_point_cloud_to_bbox_2D_vectorized(
+                                bbox_ego_frame[:, :2], copy.deepcopy(lidar_pts)
+                            )
+                            if cuboid_lidar_pts is not None:
+                                draw_point_cloud_bev(ax, cuboid_lidar_pts, color)
 
-        else:
-            logger.info(f"all occluded at {timestamp}")
-            xcenter = city_to_egovehicle_se3.translation[0]
-            ycenter = city_to_egovehicle_se3.translation[1]
-            ax.text(xcenter - 146, ycenter + 50, "ALL OBJECTS OCCLUDED", fontsize=30)
+            else:
+                logger.info(f"all occluded at {timestamp}")
+                xcenter = city_to_egovehicle_se3.translation[0]
+                ycenter = city_to_egovehicle_se3.translation[1]
+                ax.text(xcenter - 146, ycenter + 50, "ALL OBJECTS OCCLUDED", fontsize=30)
 
-    def render_front_camera_on_axis(self, ax: plt.Axes, timestamp: int, log_id: str) -> None:
-        """
-        Args:
-            ax: Matplotlib axes
-            timestamp: The timestamp
-            log_id: The ID of a log
-        """
-        ax.imshow(imageio.imread(f"{self.dataset_dir}/{log_id}/ring_front_center/ring_front_center_{timestamp}.jpg"))
+
+def render_front_camera_on_axis(self, ax: plt.Axes, timestamp: int, log_id: str) -> None:
+    """
+    Args:
+        ax: Matplotlib axes
+        timestamp: The timestamp
+        log_id: The ID of a log
+    """
+    ax.imshow(imageio.imread(f"{self.dataset_dir}/{log_id}/ring_front_center/ring_front_center_{timestamp}.jpg"))
 
 
 def visualize_30hz_benchmark_data_on_map(args: Any) -> None:
