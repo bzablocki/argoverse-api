@@ -1,17 +1,19 @@
 # %%
 from argoverse.map_representation.map_api import ArgoverseMap
 import numpy as np
-import matplotlib.pyplot as plt
 from visualize_30hz_benchmark_data_on_map import DatasetOnMapVisualizer
 from argoverse.data_loading.argoverse_tracking_loader import ArgoverseTrackingLoader
 from matplotlib.patches import Polygon
 import pickle
 import logging
+# import matplotlib
+# matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
 
 
 # %%
-# tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/sample/'
-tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/train3/'
+dataset = "train4"
+tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
 am = ArgoverseMap()
 argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
 # %%
@@ -133,7 +135,9 @@ class ArgoverseUtils():
         else:
             fig = plt.figure(figsize=(8, 8))
 
-        ax = fig.add_subplot(111)
+        # fig.tight_layout(pad=0)
+        ax = fig.add_axes([0., 0., 1., 1.])
+        # ax = fig.add_subplot(111)
         ax.set_xlim([map_range[0], map_range[1]])
         ax.set_ylim([map_range[2], map_range[3]])
         ax.axis('off')
@@ -152,14 +156,19 @@ class ArgoverseUtils():
 
         return ax
 
-    def add_img(self, target_object):
+    def add_img(self, target_object, uuid=None):
         map_range = target_object['map_range']
 
         fig, ax = self.get_plot(map_range, pix_to_pix_mapping=False)
         ax = self.add_map(ax, map_range)
+        # if uuid == '6d6703d4-85f6-4a60-831a-aa2e10acd1d9':
+        #     print("Got it")
+        #     plt.show()
+
         fig.canvas.draw()
         data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        data = np.rot90(data.transpose(1, 0, 2))
     #     data = rgb2gray(data)
         target_object['img'] = data
         # target_object['img_shape'] = data.shape
@@ -170,7 +179,7 @@ class ArgoverseUtils():
 
 class Argoverse():
 
-    def __init__(self, tracking_dataset_dir, argoverse_map=None, argoverse_loader=None):
+    def __init__(self, tracking_dataset_dir, dataset_name=None, argoverse_map=None, argoverse_loader=None):
         logger = logging.getLogger()
         logger.setLevel(logging.CRITICAL)
 
@@ -178,6 +187,7 @@ class Argoverse():
         self.am = ArgoverseMap() if argoverse_map is None else argoverse_map
         self.argoverse_loader = ArgoverseTrackingLoader(
             tracking_dataset_dir) if argoverse_loader is None else argoverse_loader
+        self.dataset_prefix_name = dataset_name
 
         self.objects_from_to = self._get_objects_from_to()
         self.valid_target_objects = self._get_valid_target_objects()
@@ -218,7 +228,7 @@ class Argoverse():
             new_target_object = utils.trim_and_interpolate_object(target_object)
             if new_target_object is not None:
                 new_target_object = utils.add_other_vehicles(uuid, new_target_object, self.objects_from_to)
-                new_target_object = utils.add_img(new_target_object)
+                new_target_object = utils.add_img(new_target_object, uuid)
                 valid_target_objects[uuid] = new_target_object
 
         return valid_target_objects
@@ -230,23 +240,55 @@ class Argoverse():
         return self.valid_target_objects
 
     def save_to_pickle(self, name=None):
-        f = name if name is not None else "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/train3.pickle"
+        f = name if name is not None else "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}.pickle".format(self.dataset_prefix_name)
         pickle_out = open(f, "wb")
         pickle.dump(self.valid_target_objects, pickle_out, protocol=2)
         pickle_out.close()
         print("Saved to pickle {}".format(f))
 
 
-argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, argoverse_map=am, argoverse_loader=argoverse_loader)
-# objects_from_to = argoverse.get_objects_from_to()
-# print(len(objects_from_to))
-valid_target_objects = argoverse.get_valid_target_objects()
+def merge_dicts(d1, d2, d3):
+    """Given two dicts, merge them into a new dict as a shallow copy."""
+    d1.update(d2)
+    d1.update(d3)
+    return d1
+
+
+argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
+argoverse.save_to_pickle()
+
+# %%
+# argoverse_train1 = Argoverse(tracking_dataset_dir='/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/train1')
+# # %%
+# argoverse_train2 = Argoverse(tracking_dataset_dir='/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/train2')
+# # %%
+# argoverse_train3 = Argoverse(tracking_dataset_dir='/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/train3')
+# # %%
+# obj1 = argoverse_train1.get_valid_target_objects()
+# obj2 = argoverse_train2.get_valid_target_objects()
+# obj3 = argoverse_train3.get_valid_target_objects()
+# %%
+
+# final_obj = merge_dicts(obj1, obj2, obj3)
+# f = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/train123.pickle"
+# pickle_out = open(f, "wb")
+# pickle.dump(final_obj, pickle_out, protocol=2)
+# pickle_out.close()
+# print("Saved to pickle {}".format(f))
+
 
 # print(len(valid_target_objects))
 # %%
-
-print(valid_target_objects['c3cfd85e-402c-46f4-a119-d720c46b2c29']['img'].shape)
+# print(valid_target_objects.keys())
+# w = valid_target_objects['6d6703d4-85f6-4a60-831a-aa2e10acd1d9']['img'].shape[0]
+#
+# fig = plt.figure(figsize=(8, 8))
+# ax = fig.add_subplot(111)
+# ax.set_xlim([0, w])
+# ax.set_ylim([0, w])
+# ax.imshow(np.rot90(valid_target_objects['6d6703d4-85f6-4a60-831a-aa2e10acd1d9']['img'].transpose(1, 0, 2)))
+# ax.imshow(valid_target_objects['6d6703d4-85f6-4a60-831a-aa2e10acd1d9']['img'])
 
 
 # %%
-argoverse.save_to_pickle()
+argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/train1.pickle")

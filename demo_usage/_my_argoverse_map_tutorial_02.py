@@ -80,7 +80,7 @@ domv.render_bev_labels_mpl(
 )
 
 prev_timestamp = argoverse_data.lidar_timestamp_list[idx]
-print(f"timestamp: {prev_timestamp}")
+print("timestamp: {}".format(prev_timestamp))
 
 # %%
 fig = plt.figure(figsize=(10, 10))
@@ -106,7 +106,7 @@ domv.render_bev_labels_mpl(
 )
 
 new_timestamp = argoverse_data.lidar_timestamp_list[idx_new]
-print(f"timestamp diff: {(new_timestamp - prev_timestamp)}")
+print("timestamp diff: {}".format((new_timestamp - prev_timestamp)))
 
 # %%
 objects = domv.log_timestamp_dict[log_id][argoverse_data.lidar_timestamp_list[idx + 10]]
