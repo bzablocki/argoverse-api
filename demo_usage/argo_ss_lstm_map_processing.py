@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 
 # %%
-dataset = "train4"
+dataset = "sample"
 tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
 am = ArgoverseMap()
 argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
@@ -47,7 +47,8 @@ class ArgoverseUtils():
         new_pos_x = np.interp(desired_idxs, idxs, pos_x)
         new_pos_y = np.interp(desired_idxs, idxs, pos_y)
 
-        interpolated_positions = np.column_stack((desired_idxs, new_pos_x, new_pos_y))
+        interpolated_positions = np.column_stack(
+            (desired_idxs, new_pos_x, new_pos_y))
         return interpolated_positions
 
     @staticmethod
@@ -106,7 +107,8 @@ class ArgoverseUtils():
             else:
                 other_postitions = np.array(other_object['positions10Hz'])
                 # get only the positions in the timeframe of the target vehicle
-                other_postitions = other_postitions[(other_postitions[:, 0] >= target_start) & (other_postitions[:, 0] <= target_stop)]
+                other_postitions = other_postitions[(other_postitions[:, 0] >= target_start) & (
+                    other_postitions[:, 0] <= target_stop)]
 
                 # iterate through all the positions
                 for other_pos in other_postitions:
@@ -131,7 +133,8 @@ class ArgoverseUtils():
             my_dpi = 96.0  # screen constant, check here https://www.infobyip.com/detectmonitordpi.php
             # fig = plt.figure(figsize=((map_range[1] - map_range[0])/my_dpi,
             #                           (map_range[3] - map_range[2])/my_dpi), dpi=my_dpi)
-            fig = plt.figure(figsize=(0.520833333333333, 0.520833333333333), dpi=my_dpi)
+            fig = plt.figure(figsize=(0.520833333333333,
+                                      0.520833333333333), dpi=my_dpi)
         else:
             fig = plt.figure(figsize=(8, 8))
 
@@ -146,7 +149,8 @@ class ArgoverseUtils():
 
     def add_map(self, ax, map_range):
         city_name = self.argoverse_data.city_name
-        map_polygons = self.argoverse_map.find_local_driveable_areas(map_range, city_name)
+        map_polygons = self.argoverse_map.find_local_driveable_areas(
+            map_range, city_name)
 
         poly = map_polygons[0]
         ax.add_patch(Polygon(poly[:, 0:2], facecolor="white", alpha=1))
@@ -175,6 +179,15 @@ class ArgoverseUtils():
         plt.close()
 
         return target_object
+
+    def is_stationary(self, target_object):
+        positions = target_object['positions10Hz']
+        poss_x = positions[:, 1]
+        poss_y = positions[:, 2]
+
+        thr = 0.5
+
+        return (np.std(poss_x) < thr) and (np.std(poss_y) < thr)
 
 
 class Argoverse():
@@ -210,7 +223,8 @@ class Argoverse():
                             objects_from_to[obj.track_uuid] = dict()
                             objects_from_to[obj.track_uuid]['start'] = idxx
                             objects_from_to[obj.track_uuid]['log_index'] = log_index
-                            objects_from_to[obj.track_uuid]['positions10Hz'] = []
+                            objects_from_to[obj.track_uuid]['positions10Hz'] = [
+                            ]
                             objects_from_to[obj.track_uuid]['positions10Hz'].append(
                                 np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0))))
                         else:
@@ -225,10 +239,14 @@ class Argoverse():
             utils = ArgoverseUtils(
                 argoverse_data=self.argoverse_loader[target_object['log_index']], argoverse_map=self.am)
             # get a segment of the path that is visible by ego vehicle, and interpolate missing frames
-            new_target_object = utils.trim_and_interpolate_object(target_object)
+            new_target_object = utils.trim_and_interpolate_object(
+                target_object)
             if new_target_object is not None:
-                new_target_object = utils.add_other_vehicles(uuid, new_target_object, self.objects_from_to)
+                new_target_object = utils.add_other_vehicles(
+                    uuid, new_target_object, self.objects_from_to)
                 new_target_object = utils.add_img(new_target_object, uuid)
+                new_target_object['is_stationary'] = utils.is_stationary(
+                    new_target_object)
                 valid_target_objects[uuid] = new_target_object
 
         return valid_target_objects
@@ -240,7 +258,8 @@ class Argoverse():
         return self.valid_target_objects
 
     def save_to_pickle(self, name=None):
-        f = name if name is not None else "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}.pickle".format(self.dataset_prefix_name)
+        f = name if name is not None else "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}.pickle".format(
+            self.dataset_prefix_name)
         pickle_out = open(f, "wb")
         pickle.dump(self.valid_target_objects, pickle_out, protocol=2)
         pickle_out.close()
@@ -254,41 +273,15 @@ def merge_dicts(d1, d2, d3):
     return d1
 
 
-argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
-argoverse.save_to_pickle()
-
-# %%
-# argoverse_train1 = Argoverse(tracking_dataset_dir='/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/train1')
-# # %%
-# argoverse_train2 = Argoverse(tracking_dataset_dir='/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/train2')
-# # %%
-# argoverse_train3 = Argoverse(tracking_dataset_dir='/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/train3')
-# # %%
-# obj1 = argoverse_train1.get_valid_target_objects()
-# obj2 = argoverse_train2.get_valid_target_objects()
-# obj3 = argoverse_train3.get_valid_target_objects()
-# %%
-
-# final_obj = merge_dicts(obj1, obj2, obj3)
-# f = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/train123.pickle"
-# pickle_out = open(f, "wb")
-# pickle.dump(final_obj, pickle_out, protocol=2)
-# pickle_out.close()
-# print("Saved to pickle {}".format(f))
-
-
-# print(len(valid_target_objects))
-# %%
-# print(valid_target_objects.keys())
-# w = valid_target_objects['6d6703d4-85f6-4a60-831a-aa2e10acd1d9']['img'].shape[0]
+argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir,
+                      dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
+# argoverse.save_to_pickle()
 #
-# fig = plt.figure(figsize=(8, 8))
-# ax = fig.add_subplot(111)
-# ax.set_xlim([0, w])
-# ax.set_ylim([0, w])
-# ax.imshow(np.rot90(valid_target_objects['6d6703d4-85f6-4a60-831a-aa2e10acd1d9']['img'].transpose(1, 0, 2)))
-# ax.imshow(valid_target_objects['6d6703d4-85f6-4a60-831a-aa2e10acd1d9']['img'])
-
-
 # %%
-argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/train1.pickle")
+target_objects = argoverse.get_valid_target_objects()
+non_stationary_counter = 0
+for uuid, obj in target_objects.items():
+    if not obj['is_stationary']:
+        non_stationary_counter += 1
+
+print("Non stationary objects: {} ({:.2f}%)".format(non_stationary_counter, non_stationary_counter / len(target_objects) * 100))
