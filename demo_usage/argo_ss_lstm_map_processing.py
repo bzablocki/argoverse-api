@@ -6,6 +6,7 @@ from argoverse.data_loading.argoverse_tracking_loader import ArgoverseTrackingLo
 from matplotlib.patches import Polygon
 import pickle
 import logging
+import os
 # import matplotlib
 # matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -24,6 +25,7 @@ class ArgoverseUtils():
     def __init__(self, argoverse_data, argoverse_map):
         self.argoverse_data = argoverse_data
         self.argoverse_map = argoverse_map
+        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs"
 
     def get_map_range(self, idx):
         xcenter, ycenter, _ = self.argoverse_data.get_pose(idx).translation
@@ -107,8 +109,7 @@ class ArgoverseUtils():
             else:
                 other_postitions = np.array(other_object['positions10Hz'])
                 # get only the positions in the timeframe of the target vehicle
-                other_postitions = other_postitions[(other_postitions[:, 0] >= target_start) & (
-                    other_postitions[:, 0] <= target_stop)]
+                other_postitions = other_postitions[(other_postitions[:, 0] >= target_start) & (other_postitions[:, 0] <= target_stop)]
 
                 # iterate through all the positions
                 for other_pos in other_postitions:
@@ -160,7 +161,7 @@ class ArgoverseUtils():
 
         return ax
 
-    def add_img(self, target_object, uuid=None):
+    def add_img(self, target_object, uuid):
         map_range = target_object['map_range']
 
         fig, ax = self.get_plot(map_range, pix_to_pix_mapping=False)
@@ -168,14 +169,20 @@ class ArgoverseUtils():
         # if uuid == '6d6703d4-85f6-4a60-831a-aa2e10acd1d9':
         #     print("Got it")
         #     plt.show()
-
         fig.canvas.draw()
         data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         data = np.rot90(data.transpose(1, 0, 2))
-    #     data = rgb2gray(data)
-        target_object['img'] = data
-        # target_object['img_shape'] = data.shape
+        # data = rgb2gray(data)
+        # target_object['img'] = data
+        img_path = os.path.join(self.img_dataset_dir, 'scene_{}.npy'.format(uuid))
+
+        # if os.path.exists(img_path):
+        #     print("WARNING: The file already exists")
+
+        np.save(img_path, data)
+        target_object['img_path'] = img_path
+
         plt.close()
 
         return target_object
@@ -211,8 +218,7 @@ class Argoverse():
         for log_index in range(len(self.argoverse_loader.log_list)):
             log_id = self.argoverse_loader.log_list[log_index]
             argoverse_data = self.argoverse_loader[log_index]
-            domv = DatasetOnMapVisualizer(self.dataset_dir, 'visualization_demo',
-                                          use_existing_files=True, log_id=argoverse_data.current_log)
+            domv = DatasetOnMapVisualizer(self.dataset_dir, 'visualization_demo', use_existing_files=True, log_id=argoverse_data.current_log)
 
             for idxx in range(len(argoverse_data.lidar_timestamp_list)):
                 objects = domv.log_timestamp_dict[log_id][argoverse_data.lidar_timestamp_list[idxx]]
@@ -223,30 +229,25 @@ class Argoverse():
                             objects_from_to[obj.track_uuid] = dict()
                             objects_from_to[obj.track_uuid]['start'] = idxx
                             objects_from_to[obj.track_uuid]['log_index'] = log_index
-                            objects_from_to[obj.track_uuid]['positions10Hz'] = [
-                            ]
+                            objects_from_to[obj.track_uuid]['positions10Hz'] = []
                             objects_from_to[obj.track_uuid]['positions10Hz'].append(
-                                np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0))))
+                                np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0)[0:2])))
                         else:
                             objects_from_to[obj.track_uuid]['stop'] = idxx
                             objects_from_to[obj.track_uuid]['positions10Hz'].append(
-                                np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0))))
+                                np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0)[0:2])))
         return objects_from_to
 
     def _get_valid_target_objects(self):
         valid_target_objects = dict()
         for i, (uuid, target_object) in enumerate(self.objects_from_to.items()):
-            utils = ArgoverseUtils(
-                argoverse_data=self.argoverse_loader[target_object['log_index']], argoverse_map=self.am)
+            utils = ArgoverseUtils(argoverse_data=self.argoverse_loader[target_object['log_index']], argoverse_map=self.am)
             # get a segment of the path that is visible by ego vehicle, and interpolate missing frames
-            new_target_object = utils.trim_and_interpolate_object(
-                target_object)
+            new_target_object = utils.trim_and_interpolate_object(target_object)
             if new_target_object is not None:
-                new_target_object = utils.add_other_vehicles(
-                    uuid, new_target_object, self.objects_from_to)
+                new_target_object = utils.add_other_vehicles(uuid, new_target_object, self.objects_from_to)
                 new_target_object = utils.add_img(new_target_object, uuid)
-                new_target_object['is_stationary'] = utils.is_stationary(
-                    new_target_object)
+                new_target_object['is_stationary'] = utils.is_stationary(new_target_object)
                 valid_target_objects[uuid] = new_target_object
 
         return valid_target_objects
@@ -258,8 +259,7 @@ class Argoverse():
         return self.valid_target_objects
 
     def save_to_pickle(self, name=None):
-        f = name if name is not None else "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}.pickle".format(
-            self.dataset_prefix_name)
+        f = name if name is not None else "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}.pickle".format(self.dataset_prefix_name)
         pickle_out = open(f, "wb")
         pickle.dump(self.valid_target_objects, pickle_out, protocol=2)
         pickle_out.close()
@@ -273,15 +273,49 @@ def merge_dicts(d1, d2, d3):
     return d1
 
 
-argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir,
-                      dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
-# argoverse.save_to_pickle()
-#
 # %%
-target_objects = argoverse.get_valid_target_objects()
-non_stationary_counter = 0
-for uuid, obj in target_objects.items():
-    if not obj['is_stationary']:
-        non_stationary_counter += 1
+# target_objects = argoverse.get_valid_target_objects()
+# non_stationary_counter = 0
+# for uuid, obj in target_objects.items():
+#     if not obj['is_stationary']:
+#         non_stationary_counter += 1
+#
+# print("Non stationary objects: {} ({:.2f}%)".format(
+#     non_stationary_counter, non_stationary_counter / len(target_objects) * 100))
 
-print("Non stationary objects: {} ({:.2f}%)".format(non_stationary_counter, non_stationary_counter / len(target_objects) * 100))
+
+argoverse_sample = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+print("sample done")
+
+# argoverse.save_to_pickle()
+
+
+# # %%
+dataset = "train1"
+tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+argoverse1 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+print("train1 done")
+argoverse1.save_to_pickle()
+# %%
+dataset = "train2"
+tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+argoverse2 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+print("train2 done")
+argoverse2.save_to_pickle()
+# %%
+
+dataset = "train3"
+tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+argoverse3 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+print("train3 done")
+argoverse3.save_to_pickle()
+# %%
+all = merge_dicts(argoverse1.get_valid_target_objects(), argoverse2.get_valid_target_objects(), argoverse3.get_valid_target_objects())
+print("done")
+# %%
+f = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}.pickle".format("train123")
+pickle_out = open(f, "wb")
+pickle.dump(all, pickle_out, protocol=2)
+pickle_out.close()
+print("Saved to pickle {}".format(f))
+# # %%
