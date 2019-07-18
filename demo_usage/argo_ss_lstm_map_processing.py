@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 
 # %%
-dataset = "sample"
+dataset = "train4"
 tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
 am = ArgoverseMap()
 argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
@@ -161,6 +161,14 @@ class ArgoverseUtils():
 
         return ax
 
+    @staticmethod
+    def rgb2gray(rgb):
+
+        r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+        gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
+
+        return gray
+
     def add_img(self, target_object, uuid):
         map_range = target_object['map_range']
 
@@ -173,8 +181,8 @@ class ArgoverseUtils():
         data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         data = np.rot90(data.transpose(1, 0, 2))
-        # data = rgb2gray(data)
-        # target_object['img'] = data
+        # data = self.rgb2gray(data)
+        target_object['img'] = data
         img_path = os.path.join(self.img_dataset_dir, 'scene_{}.npy'.format(uuid))
 
         # if os.path.exists(img_path):
@@ -283,39 +291,38 @@ def merge_dicts(d1, d2, d3):
 # print("Non stationary objects: {} ({:.2f}%)".format(
 #     non_stationary_counter, non_stationary_counter / len(target_objects) * 100))
 
+argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+print("{} done".format(dataset))
 
-argoverse_sample = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
-print("sample done")
-
-# argoverse.save_to_pickle()
+argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_gray.pickle".format(dataset))
 
 
+# # # %%
+# dataset = "train1"
+# tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+# argoverse1 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+# print("train1 done")
+# argoverse1.save_to_pickle()
 # # %%
-dataset = "train1"
-tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
-argoverse1 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
-print("train1 done")
-argoverse1.save_to_pickle()
-# %%
-dataset = "train2"
-tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
-argoverse2 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
-print("train2 done")
-argoverse2.save_to_pickle()
-# %%
-
-dataset = "train3"
-tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
-argoverse3 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
-print("train3 done")
-argoverse3.save_to_pickle()
-# %%
-all = merge_dicts(argoverse1.get_valid_target_objects(), argoverse2.get_valid_target_objects(), argoverse3.get_valid_target_objects())
-print("done")
-# %%
-f = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}.pickle".format("train123")
-pickle_out = open(f, "wb")
-pickle.dump(all, pickle_out, protocol=2)
-pickle_out.close()
-print("Saved to pickle {}".format(f))
+# dataset = "train2"
+# tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+# argoverse2 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+# print("train2 done")
+# argoverse2.save_to_pickle()
 # # %%
+#
+# dataset = "train3"
+# tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+# argoverse3 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+# print("train3 done")
+# argoverse3.save_to_pickle()
+# # %%
+# all = merge_dicts(argoverse1.get_valid_target_objects(), argoverse2.get_valid_target_objects(), argoverse3.get_valid_target_objects())
+# print("done")
+# # %%
+# f = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}.pickle".format("train123")
+# pickle_out = open(f, "wb")
+# pickle.dump(all, pickle_out, protocol=2)
+# pickle_out.close()
+# print("Saved to pickle {}".format(f))
+# # # %%
