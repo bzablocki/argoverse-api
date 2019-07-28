@@ -136,8 +136,9 @@ class ArgoverseUtils():
             #                           (map_range[3] - map_range[2])/my_dpi), dpi=my_dpi)
             fig = plt.figure(figsize=(0.520833333333333,
                                       0.520833333333333), dpi=my_dpi)
+            # fig = plt.figure(figsize=(0.25, 0.25), dpi=my_dpi)
         else:
-            fig = plt.figure(figsize=(8, 8))
+            fig = plt.figure(figsize=(1, 1))
 
         # fig.tight_layout(pad=0)
         ax = fig.add_axes([0., 0., 1., 1.])
@@ -181,8 +182,9 @@ class ArgoverseUtils():
         data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         data = np.rot90(data.transpose(1, 0, 2))
-        # data = self.rgb2gray(data)
+        data = self.rgb2gray(data)
         target_object['img'] = data
+        # print(data.shape)
         img_path = os.path.join(self.img_dataset_dir, 'scene_{}.npy'.format(uuid))
 
         # if os.path.exists(img_path):
@@ -213,8 +215,7 @@ class Argoverse():
 
         self.dataset_dir = tracking_dataset_dir
         self.am = ArgoverseMap() if argoverse_map is None else argoverse_map
-        self.argoverse_loader = ArgoverseTrackingLoader(
-            tracking_dataset_dir) if argoverse_loader is None else argoverse_loader
+        self.argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir) if argoverse_loader is None else argoverse_loader
         self.dataset_prefix_name = dataset_name
 
         self.objects_from_to = self._get_objects_from_to()
@@ -238,12 +239,10 @@ class Argoverse():
                             objects_from_to[obj.track_uuid]['start'] = idxx
                             objects_from_to[obj.track_uuid]['log_index'] = log_index
                             objects_from_to[obj.track_uuid]['positions10Hz'] = []
-                            objects_from_to[obj.track_uuid]['positions10Hz'].append(
-                                np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0)[0:2])))
+                            objects_from_to[obj.track_uuid]['positions10Hz'].append(np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0)[0:2])))
                         else:
                             objects_from_to[obj.track_uuid]['stop'] = idxx
-                            objects_from_to[obj.track_uuid]['positions10Hz'].append(
-                                np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0)[0:2])))
+                            objects_from_to[obj.track_uuid]['positions10Hz'].append(np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0)[0:2])))
         return objects_from_to
 
     def _get_valid_target_objects(self):
@@ -256,6 +255,7 @@ class Argoverse():
                 new_target_object = utils.add_other_vehicles(uuid, new_target_object, self.objects_from_to)
                 new_target_object = utils.add_img(new_target_object, uuid)
                 new_target_object['is_stationary'] = utils.is_stationary(new_target_object)
+                # add to the final dict
                 valid_target_objects[uuid] = new_target_object
 
         return valid_target_objects
@@ -291,6 +291,16 @@ def merge_dicts(d1, d2, d3):
 # print("Non stationary objects: {} ({:.2f}%)".format(
 #     non_stationary_counter, non_stationary_counter / len(target_objects) * 100))
 
+dataset = "train3"
+tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+print("{} done".format(dataset))
+
+argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_gray.pickle".format(dataset))
+
+
+dataset = "train4"
+tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
 argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
 print("{} done".format(dataset))
 
@@ -298,6 +308,9 @@ argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/
 
 
 # # # %%
+#
+img = np.load("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs/scene_0a3b6731-24cd-4d23-879e-3312ee45d2ca.npy")
+print(img.shape)
 # dataset = "train1"
 # tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
 # argoverse1 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
