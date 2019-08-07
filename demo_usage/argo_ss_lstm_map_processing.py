@@ -12,14 +12,6 @@ import os
 import matplotlib.pyplot as plt
 
 
-# %%
-dataset = "train4"
-tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
-am = ArgoverseMap()
-argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
-# %%
-
-
 class ArgoverseUtils():
 
     def __init__(self, argoverse_data, argoverse_map):
@@ -142,7 +134,6 @@ class ArgoverseUtils():
 
         # fig.tight_layout(pad=0)
         ax = fig.add_axes([0., 0., 1., 1.])
-        # ax = fig.add_subplot(111)
         ax.set_xlim([map_range[0], map_range[1]])
         ax.set_ylim([map_range[2], map_range[3]])
         ax.axis('off')
@@ -151,8 +142,7 @@ class ArgoverseUtils():
 
     def add_map(self, ax, map_range):
         city_name = self.argoverse_data.city_name
-        map_polygons = self.argoverse_map.find_local_driveable_areas(
-            map_range, city_name)
+        map_polygons = self.argoverse_map.find_local_driveable_areas(map_range, city_name)
 
         poly = map_polygons[0]
         ax.add_patch(Polygon(poly[:, 0:2], facecolor="white", alpha=1))
@@ -197,13 +187,21 @@ class ArgoverseUtils():
 
         return target_object
 
-    def is_stationary(self, target_object):
+    def is_stationary(self, target_object, visualize=False):
         positions = target_object['positions10Hz']
         poss_x = positions[:, 1]
         poss_y = positions[:, 2]
 
         thr = 0.5
 
+        if visualize:
+            map_range = target_object['map_range']
+            # print(map_range)
+            plt.scatter(poss_x, poss_y)
+            plt.xlim(map_range[0], map_range[1])
+            plt.ylim(map_range[2], map_range[3])
+            plt.title(str(np.std(poss_x)) + " " + str(np.std(poss_y)) + " " + str((np.std(poss_x) < thr) and (np.std(poss_y) < thr)))
+            plt.show()
         return (np.std(poss_x) < thr) and (np.std(poss_y) < thr)
 
 
@@ -281,7 +279,36 @@ def merge_dicts(d1, d2, d3):
     return d1
 
 
+if __name__ == '__main__':
+    pass
+
+    # %%
+    dataset = "train4"
+    tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+    am = ArgoverseMap()
+    argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
+    # %%
+    argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
+    # %%
+    trajectories = argoverse.get_valid_target_objects()
+    for i, (uuid, target_object) in enumerate(trajectories.items()):
+        if 100< i < 100:
+            if not target_object['is_stationary']:
+                positions = target_object['positions10Hz']
+                [xs, ys] = positions[:,1:3].T
+
+                distances = []
+                for ((xs_curr, ys_curr), (xs_next, ys_next)) in zip(zip(xs, ys), zip(xs[1:], ys[1:])):
+                    dist = np.sqrt((xs_next-xs_curr)**2 + (ys_next-ys_curr)**2)
+                    distances.append(dist)
+                print(positions.shape, np.mean(distances))
+                plt.plot(xs,ys)
+                plt.show()
+
+    # print(positions['positions10Hz'])
+
 # %%
+# argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
 # target_objects = argoverse.get_valid_target_objects()
 # non_stationary_counter = 0
 # for uuid, obj in target_objects.items():
@@ -290,27 +317,28 @@ def merge_dicts(d1, d2, d3):
 #
 # print("Non stationary objects: {} ({:.2f}%)".format(
 #     non_stationary_counter, non_stationary_counter / len(target_objects) * 100))
+# %%
+    dataset = "val"
+    tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+    argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+    print("{} done".format(dataset))
 
-dataset = "train3"
-tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
-argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
-print("{} done".format(dataset))
-
-argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_gray.pickle".format(dataset))
-
-
-dataset = "train4"
-tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
-argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
-print("{} done".format(dataset))
-
-argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_gray.pickle".format(dataset))
+    # argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_gray.pickle".format(dataset))
+# %%
+# %%
+#
+# dataset = "train4"
+# tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+# argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+# print("{} done".format(dataset))
+#
+# argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_gray.pickle".format(dataset))
 
 
 # # # %%
 #
-img = np.load("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs/scene_0a3b6731-24cd-4d23-879e-3312ee45d2ca.npy")
-print(img.shape)
+# img = np.load("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs/scene_0a3b6731-24cd-4d23-879e-3312ee45d2ca.npy")
+# print(img.shape)
 # dataset = "train1"
 # tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
 # argoverse1 = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)

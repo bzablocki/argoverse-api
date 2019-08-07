@@ -8,7 +8,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Tuple
 
 import imageio
 # all mayavi imports MUST come before matplotlib, else Tkinter exceptions
@@ -37,6 +37,8 @@ logger = logging.getLogger(__name__)
 
 IS_OCCLUDED_FLAG = 100
 LANE_TANGENT_VECTOR_SCALING = 4
+LANE_COLOR_NOISE = 20
+
 
 """
 Code to plot track label trajectories on a map, for the tracking benchmark.
@@ -230,9 +232,7 @@ class DatasetOnMapVisualizer:
             city_to_egovehicle_se3: SE3,
             avm: ArgoverseMap,
             vis_other_objects: bool = True
-
     ) -> None:
-
         """Plot nearby lane polygons and nearby driveable areas (da) on the Matplotlib axes.
 
         Args:

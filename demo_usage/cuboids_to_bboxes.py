@@ -50,7 +50,7 @@ def plot_lane_centerlines_in_img(
     camera_config: CameraConfig,
     planes: Iterable[Tuple[np.array, np.array, np.array, np.array, np.array]],
     color: Tuple[int, int, int] = (0, 255, 255),
-    linewidth: Number = 10,
+    linewidth: Number = 10
 ) -> np.ndarray:
     """
     Args:
