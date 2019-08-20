@@ -1,7 +1,7 @@
 # %%
 from argoverse.map_representation.map_api import ArgoverseMap
 import numpy as np
-from visualize_30hz_benchmark_data_on_map import DatasetOnMapVisualizer
+from demo_usage.visualize_30hz_benchmark_data_on_map import DatasetOnMapVisualizer
 from argoverse.data_loading.argoverse_tracking_loader import ArgoverseTrackingLoader
 from matplotlib.patches import Polygon
 import pickle
@@ -126,8 +126,9 @@ class ArgoverseUtils():
             my_dpi = 96.0  # screen constant, check here https://www.infobyip.com/detectmonitordpi.php
             # fig = plt.figure(figsize=((map_range[1] - map_range[0])/my_dpi,
             #                           (map_range[3] - map_range[2])/my_dpi), dpi=my_dpi)
-            fig = plt.figure(figsize=(0.520833333333333,
-                                      0.520833333333333), dpi=my_dpi)
+            # fig = plt.figure(figsize=(0.520833333333333,
+            #                           0.520833333333333), dpi=my_dpi)
+            fig = plt.figure(figsize=(72 / my_dpi, 72 / my_dpi), dpi=my_dpi)
             # fig = plt.figure(figsize=(0.25, 0.25), dpi=my_dpi)
         else:
             fig = plt.figure(figsize=(1, 1))
@@ -142,11 +143,10 @@ class ArgoverseUtils():
 
     def add_map(self, ax, map_range):
         city_name = self.argoverse_data.city_name
-        map_polygons = self.argoverse_map.find_local_driveable_areas(map_range, city_name)
+        map_polygons = self.argoverse_map.find_local_lane_polygons(map_range, city_name)
 
-        poly = map_polygons[0]
-        ax.add_patch(Polygon(poly[:, 0:2], facecolor="white", alpha=1))
-        for i in range(1, len(map_polygons)):
+        # ax.set_facecolor("black")
+        for i in range(0, len(map_polygons)):
             poly = map_polygons[i]
             ax.add_patch(Polygon(poly[:, 0:2], facecolor="black", alpha=1))
 
@@ -173,6 +173,7 @@ class ArgoverseUtils():
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         data = np.rot90(data.transpose(1, 0, 2))
         data = self.rgb2gray(data)
+        data = 1 - data
         target_object['img'] = data
         # print(data.shape)
         img_path = os.path.join(self.img_dataset_dir, 'scene_{}.npy'.format(uuid))
@@ -278,7 +279,6 @@ def merge_dicts(d1, d2, d3):
     d1.update(d3)
     return d1
 
-
 if __name__ == '__main__':
     pass
 
@@ -292,17 +292,17 @@ if __name__ == '__main__':
     # %%
     trajectories = argoverse.get_valid_target_objects()
     for i, (uuid, target_object) in enumerate(trajectories.items()):
-        if 100< i < 100:
+        if 100 < i < 100:
             if not target_object['is_stationary']:
                 positions = target_object['positions10Hz']
-                [xs, ys] = positions[:,1:3].T
+                [xs, ys] = positions[:, 1:3].T
 
                 distances = []
                 for ((xs_curr, ys_curr), (xs_next, ys_next)) in zip(zip(xs, ys), zip(xs[1:], ys[1:])):
-                    dist = np.sqrt((xs_next-xs_curr)**2 + (ys_next-ys_curr)**2)
+                    dist = np.sqrt((xs_next - xs_curr)**2 + (ys_next - ys_curr)**2)
                     distances.append(dist)
                 print(positions.shape, np.mean(distances))
-                plt.plot(xs,ys)
+                plt.plot(xs, ys)
                 plt.show()
 
     # print(positions['positions10Hz'])

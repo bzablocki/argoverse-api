@@ -26,6 +26,7 @@ from argoverse.utils.mpl_plotting_utils import plot_lane_segment_patch, visualiz
 from typing import Iterable, List, Sequence, Set, Tuple
 from matplotlib.patches import Polygon
 import os
+import sys
 import pickle
 
 
@@ -46,7 +47,7 @@ class ArtificialDatasetGenerator:
     def __init__(self, argoverse_map=None, argoverse_loader=None):
         self.argoverse_map = argoverse_map
         self.argoverse_loader = argoverse_loader
-        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_artificial"
+        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_artificial_v2"
         self.obs_frames, self.pred_frames = 20, 20
 
     def _generate_obs_pred(self):
@@ -101,11 +102,15 @@ class ArtificialDatasetGenerator:
         # print(all_pos.shape)
         return all_pos
 
-    def get_random_sample(self, trajectory, nsamples=1):
+    def get_random_sample(self, trajectory, nsamples=1, validation_dataset=False):
         trajectory = trajectory.T
         trajectory_length = trajectory.shape[0]
         desired_path_length = self.obs_frames + self.pred_frames
 
+        if validation_dataset:
+            np.random.seed(42)
+        else:
+            np.random.seed(0)
         starting_idxs = np.random.randint(0, trajectory_length - desired_path_length + 1, nsamples)
 
         res_trajectories = np.zeros((nsamples, desired_path_length, 2))
@@ -166,34 +171,34 @@ class ArtificialDatasetGenerator:
         positions[..., 0] = (positions[..., 0] - xmin) / (xmax - xmin)
         positions[..., 1] = (positions[..., 1] - ymin) / (ymax - ymin)
 
-    # def plot(self, trajectories_obs, trajectories_pred, full_trajectory=None):
-    #     for (obs_pos, pred_pos) in zip(trajectories_obs, trajectories_pred):
-    #
-    #         fig = plt.figure(figsize=(7, 7))
-    #         ax = fig.add_subplot(111)
-    #
-    #         # take one point and display driveable areas around it
-    #         # starting_point_idx = 3
-    #         # xcenter, ycenter = laneX[starting_point_idx], laneY[starting_point_idx]
-    #         xcenter, ycenter = obs_pos[0, 0], obs_pos[0, 1]
-    #         r = 25
-    #         xmin, xmax = xcenter - r, xcenter + r
-    #         ymin, ymax = ycenter - r, ycenter + r
-    #         ax.set_xlim([xmin, xmax])
-    #         ax.set_ylim([ymin, ymax])
-    #
-    #         local_lane_polygons = am.find_local_lane_polygons([xmin, xmax, ymin, ymax], city_name)
-    #         ax = self.add_map(ax, local_lane_polygons)
-    #
-    #         if full_trajectory is not None:
-    #             # vizualize full trajectory
-    #             ax.plot(full_trajectory[0], full_trajectory[1], "--", color="red", alpha=1, linewidth=1)
-    #
-    #         # vizualize points on trajectory
-    #         ax.scatter(obs_pos[:, 0], obs_pos[:, 1], color="green", zorder=2)
-    #         ax.scatter(pred_pos[:, 0], pred_pos[:, 1], color="blue", zorder=2)
-    #
-    #         plt.show()
+    def plot(self, trajectories_obs, trajectories_pred, full_trajectory=None):
+        for (obs_pos, pred_pos) in zip(trajectories_obs, trajectories_pred):
+
+            fig = plt.figure(figsize=(7, 7))
+            ax = fig.add_subplot(111)
+
+            # take one point and display driveable areas around it
+            # starting_point_idx = 3
+            # xcenter, ycenter = laneX[starting_point_idx], laneY[starting_point_idx]
+            xcenter, ycenter = obs_pos[0, 0], obs_pos[0, 1]
+            r = 25
+            xmin, xmax = xcenter - r, xcenter + r
+            ymin, ymax = ycenter - r, ycenter + r
+            ax.set_xlim([xmin, xmax])
+            ax.set_ylim([ymin, ymax])
+
+            local_lane_polygons = am.find_local_lane_polygons([xmin, xmax, ymin, ymax], city_name)
+            ax = self.add_map(ax, local_lane_polygons)
+
+            if full_trajectory is not None:
+                # vizualize full trajectory
+                ax.plot(full_trajectory[0], full_trajectory[1], "--", color="red", alpha=1, linewidth=1)
+
+            # vizualize points on trajectory
+            ax.scatter(obs_pos[:, 0], obs_pos[:, 1], color="green", zorder=2)
+            ax.scatter(pred_pos[:, 0], pred_pos[:, 1], color="blue", zorder=2)
+
+            plt.show()
 
     def add_map(self, ax, map_polygons):
         # ax.set_facecolor("black")
@@ -216,14 +221,24 @@ class ArtificialDatasetGenerator:
         gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
         return gray
 
-    def get_and_save_img(self, id, trajectory_obs, trajectory_pred, map_range, preview=False):
-        uuid = str(id).zfill(6)
+    def get_and_save_img(self, lane_idx, traj_nb, city_name, trajectory_obs, trajectory_pred, map_range, preview=False, force_save=False, validation_dataset=False):
+        uuid = city_name + "_" + str(lane_idx).zfill(6) + "_" + str(traj_nb).zfill(2)
+        if validation_dataset:
+            img_path = os.path.join(self.img_dataset_dir, 'scene_val_{}.npy'.format(uuid))
+        else:
+            img_path = os.path.join(self.img_dataset_dir, 'scene_{}.npy'.format(uuid))
+
+        if not (force_save or not os.path.exists(img_path) or preview):
+            return img_path
+
         [xmin, xmax, ymin, ymax] = map_range
         local_lane_polygons = am.find_local_lane_polygons(map_range, city_name)
         if preview:
             fig = plt.figure(figsize=(5, 5))
         else:
-            fig = plt.figure(figsize=(1, 1))
+            # fig = plt.figure(figsize=(1, 1))
+            my_dpi = 96.0
+            fig = plt.figure(figsize=(72 / my_dpi, 72 / my_dpi), dpi=my_dpi)
 
         ax = fig.add_axes([0., 0., 1., 1.])
         ax.set_xlim([map_range[0], map_range[1]])
@@ -240,16 +255,26 @@ class ArtificialDatasetGenerator:
             fig.canvas.draw()
             data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
             data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            data = np.rot90(data.transpose(1, 0, 2))
             data = 1 - self.rgb2gray(data)
 
-            img_path = os.path.join(self.img_dataset_dir, 'scene_{}.npy'.format(uuid))
+            if data.shape[0] != 72 and data.shape[1] != 72:
+                print("Wrong data shape {} {}".format(data.shape, img_path))
 
-            np.save(img_path, data)
+            if force_save or not os.path.exists(img_path) or preview:
+                # print("save {}".format(img_path))
+                np.save(img_path, data)
+
             plt.close()
-
+            # print(data.shape, img_path)
             return img_path
 
-    def generate_for_city(self, city_name):
+    def is_within_range(self, trajectory_obs, trajectory_pred):
+        if np.any(trajectory_obs <= 0) or np.any(trajectory_obs >= 1) or np.any(trajectory_pred <= 0) or np.any(trajectory_pred >= 1):
+            return False
+        return True
+
+    def generate_for_city(self, city_name, save=False, validation_dataset=False):
         curr_lane_candidates = am.get_lane_ids_in_xy_bbox(0, 0, city_name, np.inf)
         print("all lanes {}".format(len(curr_lane_candidates)))
 
@@ -261,40 +286,43 @@ class ArtificialDatasetGenerator:
         person_input = np.zeros((0, 20, 2))
         expected_output = np.zeros((0, 20, 2))
         scene_input = []  # np.zeros((0, 20, 1))
+        # for lane_idx in range(162, 174):
         for lane_idx in range(len(full_trajectories)):
-            if lane_idx > len(full_trajectories) + 1:
-                break
+            # if lane_idx > 90:
+            #     break
             full_trajectory = full_trajectories[lane_idx]
 
             full_trajectory = self.interpolate_segments_to_steps(full_trajectory)
             # trajectories_obs, trajectories_pred = self.split_to_trajectories(full_trajectory)
-            trajectories_obs, trajectories_pred = self.get_random_sample(full_trajectory)
+            trajectories_obs, trajectories_pred = self.get_random_sample(full_trajectory, nsamples=3, validation_dataset=validation_dataset)
             # self.plot(trajectories_obs, trajectories_pred, full_trajectory)
 
-            for id, (trajectory_obs, trajectory_pred) in enumerate(zip(trajectories_obs, trajectories_pred)):
+            for traj_nb, (trajectory_obs, trajectory_pred) in enumerate(zip(trajectories_obs, trajectories_pred)):
                 map_range = self.get_map_range(trajectory_obs)
                 self._normalize_positions(trajectory_obs, map_range)
                 self._normalize_positions(trajectory_pred, map_range)
+                if self.is_within_range(trajectory_obs, trajectory_pred):
+                    img_path = self.get_and_save_img(lane_idx, traj_nb, city_name, trajectory_obs, trajectory_pred, map_range,
+                                                     force_save=False, validation_dataset=validation_dataset)
+                    scene_input.append(img_path)
 
-                img_path = self.get_and_save_img(id, trajectory_obs, trajectory_pred, map_range)
+                    person_input = np.vstack((person_input, np.expand_dims(trajectory_obs, axis=0)))
+                    expected_output = np.vstack((expected_output, np.expand_dims(trajectory_pred, axis=0)))
 
-                scene_input.append(img_path)
-
-            person_input = np.vstack((person_input, trajectories_obs))
-            expected_output = np.vstack((expected_output, trajectories_pred))
-            social_input = np.zeros((expected_output.shape[0], self.obs_frames, 64))
+            social_input = np.zeros((person_input.shape[0], self.obs_frames, 64))
 
             # save checkpoint
             save_every = 100
             if (lane_idx + 1) % save_every == 0:
-                # path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints"
-                # path = os.path.join(path, "data_checkpoint_{}.pickle".format(str(int(lane_idx / save_every)).zfill(6)))
-                # self.save_to_pickle(path, [scene_input, social_input, person_input, expected_output])
-                print("Progress: {}%".format(int(lane_idx / len(full_trajectories) * 100)))
+                print("Progress: {}% // {}".format(int(lane_idx / len(full_trajectories) * 100), (person_input.shape, expected_output.shape, len(scene_input))))
 
-        path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints"
-        path = os.path.join(path, "data_final_{}.pickle".format(city_name))
-        self.save_to_pickle(path, [scene_input, social_input, person_input, expected_output])
+        if save:
+            path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints"
+            if validation_dataset:
+                path = os.path.join(path, "data_final_val.pickle".format(city_name))
+            else:
+                path = os.path.join(path, "data_final_{}.pickle".format(city_name))
+            self.save_to_pickle(path, [np.array(scene_input), social_input, person_input, expected_output])
 
         print(person_input.shape, expected_output.shape, len(scene_input))
         # person_input, expected_output, social_input, scene_input
@@ -308,15 +336,6 @@ class ArtificialDatasetGenerator:
         print("Saved to pickle {}".format(name))
 
 
-if __name__ == "__main__":
-    pass
-    adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
-    city_name = "MIA"
-    scene_input, social_input, person_input, expected_output = adg.generate_for_city(city_name)
-
-    # merge_lists()
-
-
 def merge_lists():
     # [scene_input, social_input, person_input, expected_output]
     city_name = ["PIT", "MIA"]
@@ -326,22 +345,42 @@ def merge_lists():
 
     pickle_in = open(path1, "rb")
     data1 = pickle.load(pickle_in)
-    print(data1[1].shape)
+    print(data1[0].shape)
 
     pickle_in = open(path2, "rb")
     data2 = pickle.load(pickle_in)
-    print(data2[1].shape)
+    print(data2[0].shape)
 
-    scene_input = data1[0] + data2[0]
+    # scene_input = data1[0] + data2[0]
+    # scene_input = np.array(scene_input, dtype='object')
+    scene_input = np.vstack((np.expand_dims(data1[0], axis=-1), np.expand_dims(data2[0], axis=-1)))
     social_input = np.vstack((data1[1], data2[1]))
     person_input = np.vstack((data1[2], data2[2]))
     expected_output = np.vstack((data1[3], data2[3]))
 
-    print(len(scene_input), social_input.shape, person_input.shape, expected_output.shape)
-
+    print(scene_input.shape, social_input.shape, person_input.shape, expected_output.shape)
     path_res = os.path.join(path, "data_final_{}_{}.pickle".format(city_name[0], city_name[1]))
 
     pickle_out = open(path_res, "wb")
     pickle.dump([scene_input, social_input, person_input, expected_output], pickle_out, protocol=2)
     pickle_out.close()
     print("Saved to pickle {}".format(path_res))
+
+
+if __name__ == "__main__":
+    pass
+    city_names = ["PIT", "MIA"]
+    if len(sys.argv) == 2 and sys.argv[1] in city_names:
+        city_name = sys.argv[1]
+        print("Processing for {}".format(city_name))
+        adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
+        adg.generate_for_city(city_name, save=True)
+    else:
+        # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
+        # city_name = "MIA"
+        # scene_input, social_input, person_input, expected_output = adg.generate_for_city(city_name, save=False, validation_dataset=True)
+
+        merge_lists()
+        # x = np.load("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_artificial/scene_PIT _000003_00.npy")
+        # print(x.shape)
+
