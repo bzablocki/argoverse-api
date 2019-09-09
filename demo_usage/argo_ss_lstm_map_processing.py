@@ -17,7 +17,7 @@ class ArgoverseUtils():
     def __init__(self, argoverse_data, argoverse_map):
         self.argoverse_data = argoverse_data
         self.argoverse_map = argoverse_map
-        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs"
+        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_48x48"
 
     def get_map_range(self, idx):
         xcenter, ycenter, _ = self.argoverse_data.get_pose(idx).translation
@@ -41,8 +41,7 @@ class ArgoverseUtils():
         new_pos_x = np.interp(desired_idxs, idxs, pos_x)
         new_pos_y = np.interp(desired_idxs, idxs, pos_y)
 
-        interpolated_positions = np.column_stack(
-            (desired_idxs, new_pos_x, new_pos_y))
+        interpolated_positions = np.column_stack((desired_idxs, new_pos_x, new_pos_y))
         return interpolated_positions
 
     @staticmethod
@@ -124,14 +123,13 @@ class ArgoverseUtils():
     def get_plot(map_range, pix_to_pix_mapping=True):
         if pix_to_pix_mapping:
             my_dpi = 96.0  # screen constant, check here https://www.infobyip.com/detectmonitordpi.php
-            # fig = plt.figure(figsize=((map_range[1] - map_range[0])/my_dpi,
-            #                           (map_range[3] - map_range[2])/my_dpi), dpi=my_dpi)
-            # fig = plt.figure(figsize=(0.520833333333333,
-            #                           0.520833333333333), dpi=my_dpi)
             fig = plt.figure(figsize=(72 / my_dpi, 72 / my_dpi), dpi=my_dpi)
+            # fig = plt.figure(figsize=(48 / my_dpi, 48 / my_dpi), dpi=my_dpi)
             # fig = plt.figure(figsize=(0.25, 0.25), dpi=my_dpi)
         else:
-            fig = plt.figure(figsize=(1, 1))
+            my_dpi = 96.0  # screen constant, check here https://www.infobyip.com/detectmonitordpi.php
+            fig = plt.figure(figsize=(48 / my_dpi, 48 / my_dpi), dpi=my_dpi)
+            # fig = plt.figure(figsize=(1, 1))
 
         # fig.tight_layout(pad=0)
         ax = fig.add_axes([0., 0., 1., 1.])
@@ -165,21 +163,23 @@ class ArgoverseUtils():
 
         fig, ax = self.get_plot(map_range, pix_to_pix_mapping=False)
         ax = self.add_map(ax, map_range)
-        # if uuid == '6d6703d4-85f6-4a60-831a-aa2e10acd1d9':
-        #     print("Got it")
-        #     plt.show()
+
         fig.canvas.draw()
         data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         data = np.rot90(data.transpose(1, 0, 2))
         data = self.rgb2gray(data)
         data = 1 - data
-        target_object['img'] = data
+        # target_object['img'] = data
         # print(data.shape)
         img_path = os.path.join(self.img_dataset_dir, 'scene_{}.npy'.format(uuid))
 
         # if os.path.exists(img_path):
         #     print("WARNING: The file already exists")
+        # if uuid == '60c089d4-10bf-4855-82c7-5ec02d0955ad':
+        #     print("Saving in {}".format(img_path))
+        #     print("shape {}".format(data.shape))
+        #     plt.show()
 
         np.save(img_path, data)
         target_object['img_path'] = img_path
@@ -193,7 +193,7 @@ class ArgoverseUtils():
         poss_x = positions[:, 1]
         poss_y = positions[:, 2]
 
-        thr = 0.5
+        thr = 1.
 
         if visualize:
             map_range = target_object['map_range']
@@ -272,6 +272,24 @@ class Argoverse():
         pickle_out.close()
         print("Saved to pickle {}".format(f))
 
+def save_all_to_pickle():
+    datasets = ["train1", "train2", "train3", "train4"]
+    final_dict = {}
+    for dataset in datasets:
+        tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+        ###################
+        am = ArgoverseMap()
+        argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
+        ###################
+        argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
+        final_dict.update(argoverse.valid_target_objects)
+        print("Processed {}".format(dataset))
+
+    f = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/train1234_48x48.pickle"
+    pickle_out = open(f, "wb")
+    pickle.dump(final_dict, pickle_out, protocol=2)
+    pickle_out.close()
+    print("Saved to pickle {}".format(f))
 
 def merge_dicts(d1, d2, d3):
     """Given two dicts, merge them into a new dict as a shallow copy."""
@@ -279,33 +297,48 @@ def merge_dicts(d1, d2, d3):
     d1.update(d3)
     return d1
 
+
 if __name__ == '__main__':
     pass
+    # save_all_to_pickle()
 
-    # %%
-    dataset = "train4"
+    dataset = "val"
     tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+    ###################
     am = ArgoverseMap()
     argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
-    # %%
+    ###################
     argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
+    argoverse.save_to_pickle("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_48x48.pickle".format(dataset))
     # %%
-    trajectories = argoverse.get_valid_target_objects()
-    for i, (uuid, target_object) in enumerate(trajectories.items()):
-        if 100 < i < 100:
-            if not target_object['is_stationary']:
-                positions = target_object['positions10Hz']
-                [xs, ys] = positions[:, 1:3].T
+    # # idx = 6
+    # idx = 103
+    # # idx = 85
+    # trajectories = argoverse.get_valid_target_objects()
+    # for i, (uuid, target_object) in enumerate(trajectories.items()):
+    #     if idx-1 < i < idx+1:
+    #         if target_object["is_stationary"]:
+    #             print(i, "stationary")
+    #         print(target_object["img_path"])
+    #         data = np.load(target_object["img_path"])
+    #         print(data.shape)
+    #         plt.imshow(data)
+    #         positions = np.copy(target_object["positions10Hz"])
+    #         map_range = target_object["map_range"]
+    #         [xmin, xmax, ymin, ymax] = map_range
+    #         positions[..., -2] = (positions[..., -2] - xmin) / (xmax - xmin)
+    #         positions[..., -1] = (positions[..., -1] - ymin) / (ymax - ymin)
+    #         positions[..., -2] = positions[..., -2] * 48
+    #         positions[..., -1] = positions[..., -1] * 48
+    #         print(positions[0])
+    #         plt.scatter(positions[..., -2], positions[..., -1])
+    #         plt.show()
 
-                distances = []
-                for ((xs_curr, ys_curr), (xs_next, ys_next)) in zip(zip(xs, ys), zip(xs[1:], ys[1:])):
-                    dist = np.sqrt((xs_next - xs_curr)**2 + (ys_next - ys_curr)**2)
-                    distances.append(dist)
-                print(positions.shape, np.mean(distances))
-                plt.plot(xs, ys)
-                plt.show()
+
 
     # print(positions['positions10Hz'])
+
+
 
 # %%
 # argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
@@ -318,10 +351,10 @@ if __name__ == '__main__':
 # print("Non stationary objects: {} ({:.2f}%)".format(
 #     non_stationary_counter, non_stationary_counter / len(target_objects) * 100))
 # %%
-    dataset = "val"
-    tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
-    argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
-    print("{} done".format(dataset))
+    # dataset = "val"
+    # tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
+    # argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset)
+    # print("{} done".format(dataset))
 
     # argoverse.save_to_pickle(name="/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_gray.pickle".format(dataset))
 # %%
