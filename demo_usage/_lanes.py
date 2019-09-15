@@ -86,8 +86,6 @@ class ArtificialDatasetGenerator:
         return interpolated_positions
 
     def interpolate_segments_to_steps(self, lane):
-        # 1 lane consists of many segments
-        # take 2 segments for obs and 2 for pred
         divide_segment_by = 5
         laneX, laneY = np.array(lane[0]), np.array(lane[1])
 
@@ -271,7 +269,7 @@ class ArtificialDatasetGenerator:
         ax = fig.add_axes([0., 0., 1., 1.])
         ax.set_xlim([map_range[0], map_range[1]])
         ax.set_ylim([map_range[2], map_range[3]])
-        ax.set_title(direction)
+        # ax.set_title(direction)
         ax = self.add_map(ax, local_lane_polygons)
 
         if preview:
@@ -457,7 +455,7 @@ class ArtificialDatasetGenerator:
                 path = os.path.join(path, "directiondict_final_{}.pickle".format(city_name))
             self.save_to_pickle(path, [person_input_by_direction, expected_output_by_direction, scene_input_by_direction])
 
-        if not self.dev_mode and save:
+        if save:
             path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v4"
             if validation_dataset:
                 path = os.path.join(path, "data_final_val.pickle".format(city_name))
@@ -479,7 +477,7 @@ class ArtificialDatasetGenerator:
 def merge_lists():
     # [scene_input, social_input, person_input, expected_output]
     city_name = ["PIT", "MIA"]
-    path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints"
+    path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v4"
     path1 = os.path.join(path, "data_final_{}.pickle".format(city_name[0]))
     path2 = os.path.join(path, "data_final_{}.pickle".format(city_name[1]))
 
@@ -499,7 +497,7 @@ def merge_lists():
     expected_output = np.vstack((data1[3], data2[3]))
 
     print(scene_input.shape, social_input.shape, person_input.shape, expected_output.shape)
-    path_res = os.path.join(path, "data_final_{}_{}_v3.pickle".format(city_name[0], city_name[1]))
+    path_res = os.path.join(path, "data_final_{}_{}_v4.pickle".format(city_name[0], city_name[1]))
 
     pickle_out = open(path_res, "wb")
     pickle.dump([scene_input, social_input, person_input, expected_output], pickle_out, protocol=2)
@@ -522,10 +520,10 @@ if __name__ == "__main__":
         adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
         adg.generate_for_city(city_name, save=True)
     else:
-        adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
-        city_name = "MIA"
-        adg.generate_for_city(city_name, save=True, validation_dataset=False)
+        # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
+        # city_name = "MIA"
+        # adg.generate_for_city(city_name, save=True, validation_dataset=False)
 
-        # merge_lists()
+        merge_lists()
         # x = np.load("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_artificial/scene_PIT _000003_00.npy")
         # print(x.shape)

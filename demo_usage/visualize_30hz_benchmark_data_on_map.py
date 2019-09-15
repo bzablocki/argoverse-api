@@ -231,7 +231,8 @@ class DatasetOnMapVisualizer:
             timestamp: int,
             city_to_egovehicle_se3: SE3,
             avm: ArgoverseMap,
-            vis_other_objects: bool = True
+            vis_other_objects: bool = True,
+            vis_arrow: bool = True,
     ) -> None:
         """Plot nearby lane polygons and nearby driveable areas (da) on the Matplotlib axes.
 
@@ -288,7 +289,7 @@ class DatasetOnMapVisualizer:
                         )
                         if axis is "city_axis":
                             plot_bbox_2D(ax, bbox_city_fr, color)
-                            if self.plot_lane_tangent_arrows:
+                            if vis_arrow and self.plot_lane_tangent_arrows:
                                 bbox_center = np.mean(bbox_city_fr, axis=0)
                                 tangent_xy, conf = avm.get_lane_direction(
                                     query_xy_city_coords=bbox_center[:2], city_name=city_name

@@ -50,7 +50,13 @@ def plot_lane_centerlines_in_img(
     camera_config: CameraConfig,
     planes: Iterable[Tuple[np.array, np.array, np.array, np.array, np.array]],
     color: Tuple[int, int, int] = (0, 255, 255),
-    linewidth: Number = 10
+    linewidth: Number = 10,
+    query_search_range_manhattan: Number = None,
+    query_x: Number = None,
+    query_y: Number = None,
+    local_centerlines_list=None,
+    alpha_transparencies=None,
+    is_noise = True
 ) -> np.ndarray:
     """
     Args:
@@ -70,26 +76,39 @@ def plot_lane_centerlines_in_img(
     t = camera_config.extrinsic[:3, 3]
     cam_SE3_egovehicle = SE3(rotation=R, translation=t)
 
-    query_x, query_y, _ = city_to_egovehicle_se3.translation
-    local_centerlines = avm.find_local_lane_centerlines(query_x, query_y, city_name)
+    if query_x is None or query_y is None:
+        query_x, query_y, _ = city_to_egovehicle_se3.translation
 
-    for centerline_city_fr in local_centerlines:
-        color = [intensity + np.random.randint(0, LANE_COLOR_NOISE) - LANE_COLOR_NOISE // 2 for intensity in color]
+    if local_centerlines_list is None:
+        if query_search_range_manhattan is not None:
+            local_centerlines_list = avm.find_local_lane_centerlines(query_x, query_y, city_name, query_search_range_manhattan)
+        else:
+            local_centerlines_list = [avm.find_local_lane_centerlines(query_x, query_y, city_name)]
+    # print(len(local_centerlines))
+    for lane_number, local_centerlines in enumerate(local_centerlines_list):
+        for i, centerline_city_fr in enumerate(local_centerlines):
+            if is_noise:
+                color = [intensity + np.random.randint(0, LANE_COLOR_NOISE) - LANE_COLOR_NOISE // 2 for intensity in color]
+            else:
+                color = [intensity + np.random.randint(0, LANE_COLOR_NOISE) - LANE_COLOR_NOISE // 2 for intensity in color]
 
-        ground_heights = avm.get_ground_height_at_xy(centerline_city_fr, city_name)
+            ground_heights = avm.get_ground_height_at_xy(centerline_city_fr, city_name)
 
-        valid_idx = np.isnan(ground_heights)
-        centerline_city_fr = centerline_city_fr[~valid_idx]
+            valid_idx = np.isnan(ground_heights)
+            centerline_city_fr = centerline_city_fr[~valid_idx]
 
-        centerline_egovehicle_fr = city_to_egovehicle_se3.inverse().transform_point_cloud(centerline_city_fr)
-        centerline_uv_cam = cam_SE3_egovehicle.transform_point_cloud(centerline_egovehicle_fr)
+            centerline_egovehicle_fr = city_to_egovehicle_se3.inverse().transform_point_cloud(centerline_city_fr)
+            centerline_uv_cam = cam_SE3_egovehicle.transform_point_cloud(centerline_egovehicle_fr)
 
-        # can also clip point cloud to nearest LiDAR point depth
-        centerline_uv_cam = clip_point_cloud_to_visible_region(centerline_uv_cam, lidar_pts)
-        for i in range(centerline_uv_cam.shape[0] - 1):
-            draw_clipped_line_segment(
-                img, centerline_uv_cam[i], centerline_uv_cam[i + 1], camera_config, linewidth, planes, color
-            )
+            # can also clip point cloud to nearest LiDAR point depth
+            centerline_uv_cam = clip_point_cloud_to_visible_region(centerline_uv_cam, lidar_pts)
+            for i in range(centerline_uv_cam.shape[0] - 1):
+                if alpha_transparencies is None:
+                    draw_clipped_line_segment(img, centerline_uv_cam[i], centerline_uv_cam[i + 1], camera_config, linewidth, planes, color)
+                else:
+                    draw_clipped_line_segment(img, centerline_uv_cam[i], centerline_uv_cam[i + 1], camera_config, linewidth, planes, color,
+                                              alpha=alpha_transparencies[lane_number])
+
     return img
 
 

@@ -18,6 +18,7 @@ def draw_clipped_line_segment(
     linewidth: int,
     planes: List[Tuple[np.array, np.array, np.array, np.array, np.array]],
     color: Tuple[int, int, int],
+    alpha:int = None
 ) -> None:
     """Plot the portion of a line segment that lives within a parameterized 3D camera frustum.
 
@@ -39,7 +40,14 @@ def draw_clipped_line_segment(
 
     uv_a = uv_a.squeeze()
     uv_b = uv_b.squeeze()
-    cv2.line(img, (int(uv_a[0]), int(uv_a[1])), (int(uv_b[0]), int(uv_b[1])), color, linewidth)
+    if alpha is None:
+        cv2.line(img, (int(uv_a[0]), int(uv_a[1])), (int(uv_b[0]), int(uv_b[1])), color, linewidth)
+    else:
+        overlay = img.copy()
+        output = img.copy()
+
+        cv2.line(overlay, (int(uv_a[0]), int(uv_a[1])), (int(uv_b[0]), int(uv_b[1])), color, linewidth)
+        cv2.addWeighted(overlay, alpha, output, 1 - alpha, 0, img)
 
 
 def draw_point_cloud_in_img_cv2(img: np.ndarray, xy: np.ndarray, colors: np.ndarray, radius: int = 5) -> np.ndarray:
