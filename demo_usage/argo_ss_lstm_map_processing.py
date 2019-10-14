@@ -309,7 +309,7 @@ if __name__ == '__main__':
     argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
     ###################
     argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
-    argoverse.save_to_pickle("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_48x48.pickle".format(dataset))
+    # argoverse.save_to_pickle("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_48x48.pickle".format(dataset))
     # %%
     # # idx = 6
     # idx = 103

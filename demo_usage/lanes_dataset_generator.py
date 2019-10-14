@@ -46,12 +46,14 @@ curr_lane_candidates = am.get_lane_ids_in_xy_bbox(0, 0, city_name, np.inf)
 
 
 class ArtificialDatasetGenerator:
-    def __init__(self, argoverse_map=None, argoverse_loader=None, dev_mode=False):
+    def __init__(self, argoverse_map=None, argoverse_loader=None, grid_map_input=False, dev_mode=False):
         self.argoverse_map = argoverse_map
         self.argoverse_loader = argoverse_loader
-        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_artificial_v4"
-        self.obs_frames, self.pred_frames = 20, 20
+        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_artificial_v5_2050"
+        self.cache_dir = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v5"
+        self.obs_frames, self.pred_frames = 20, 50
         self.dev_mode = dev_mode
+        self.grid_map_input = grid_map_input
 
     def _generate_obs_pred(self):
         # for log_id in range(len(argoverse_loader.log_list)):
@@ -103,7 +105,7 @@ class ArtificialDatasetGenerator:
         # print(all_pos.shape)
         return all_pos
 
-    def get_random_sample(self, trajectory, nsamples=1, validation_dataset=False):
+    def get_random_sample(self, trajectory, nsamples=1, validation_dataset=False):  # it's actually splitting trajectories
         trajectory = trajectory.T
         trajectory_length = trajectory.shape[0]
         desired_path_length = self.obs_frames + self.pred_frames
@@ -126,7 +128,10 @@ class ArtificialDatasetGenerator:
             obs_pos = np.vstack((obs_pos, obs_single)) if obs_pos is not None else obs_single
             pred_pos = np.vstack((pred_pos, pred_single)) if pred_pos is not None else pred_single
 
-        return obs_pos, pred_pos
+        if obs_pos is None or pred_pos is None:
+            return [], []
+        else:
+            return obs_pos, pred_pos
         # if validation_dataset:
         #     np.random.seed(42)
         # else:
@@ -142,33 +147,33 @@ class ArtificialDatasetGenerator:
         # # print(res_trajectories.shape, res_trajectories[:, 0:self.obs_frames].shape, res_trajectories[:, self.obs_frames:].shape)
         # return res_trajectories[:, 0:self.obs_frames], res_trajectories[:, self.obs_frames:]
 
-    def split_to_trajectories(self, single_lane, offset=8):
-        positions = single_lane.T
-        # print("single_lane {}".format(positions.shape))
-        path_length = self.obs_frames + self.pred_frames
-        unique_trajectories = int(max(0, ((positions.shape[0] - path_length) / offset) + 1))
-        # print("unique_trajectories {}".format(unique_trajectories))
-
-        obs_pos, pred_pos, obs_pred_pos = None, None, None
-        for i in range(unique_trajectories):
-            start_idx = i * offset
-            end_idx = start_idx + self.obs_frames
-            obs_single = positions[start_idx:end_idx]
-            obs_single = np.expand_dims(obs_single, axis=0)
-            # circle_occupancy_map_single = self._get_circle_occupancy_map_single(target_object, start_idx)
-            # circle_occupancy_map_single = np.expand_dims(circle_occupancy_map_single, axis=0)
-
-            start_idx = end_idx
-            end_idx = start_idx + self.pred_frames
-            pred_single = positions[start_idx:end_idx]
-            pred_single = np.expand_dims(pred_single, axis=0)
-
-            obs_pos = np.vstack((obs_pos, obs_single)) if obs_pos is not None else obs_single
-            pred_pos = np.vstack((pred_pos, pred_single)) if pred_pos is not None else pred_single
-            # circle_occupancy_map = np.vstack((circle_occupancy_map, circle_occupancy_map_single)) if circle_occupancy_map is not None else circle_occupancy_map_single
-
-        # obs_pred_pos = np.concatenate((obs_pos, pred_pos), axis=1)
-        return obs_pos, pred_pos
+    # def split_to_trajectories(self, single_lane, offset=8):
+    #     positions = single_lane.T
+    #     # print("single_lane {}".format(positions.shape))
+    #     path_length = self.obs_frames + self.pred_frames
+    #     unique_trajectories = int(max(0, ((positions.shape[0] - path_length) / offset) + 1))
+    #     # print("unique_trajectories {}".format(unique_trajectories))
+    #
+    #     obs_pos, pred_pos, obs_pred_pos = None, None, None
+    #     for i in range(unique_trajectories):
+    #         start_idx = i * offset
+    #         end_idx = start_idx + self.obs_frames
+    #         obs_single = positions[start_idx:end_idx]
+    #         obs_single = np.expand_dims(obs_single, axis=0)
+    #         # circle_occupancy_map_single = self._get_circle_occupancy_map_single(target_object, start_idx)
+    #         # circle_occupancy_map_single = np.expand_dims(circle_occupancy_map_single, axis=0)
+    #
+    #         start_idx = end_idx
+    #         end_idx = start_idx + self.pred_frames
+    #         pred_single = positions[start_idx:end_idx]
+    #         pred_single = np.expand_dims(pred_single, axis=0)
+    #
+    #         obs_pos = np.vstack((obs_pos, obs_single)) if obs_pos is not None else obs_single
+    #         pred_pos = np.vstack((pred_pos, pred_single)) if pred_pos is not None else pred_single
+    #         # circle_occupancy_map = np.vstack((circle_occupancy_map, circle_occupancy_map_single)) if circle_occupancy_map is not None else circle_occupancy_map_single
+    #
+    #     # obs_pred_pos = np.concatenate((obs_pos, pred_pos), axis=1)
+    #     return obs_pos, pred_pos
 
     def get_lanes_before_after(self, lane_candidates, id=None):
         if id is not None:
@@ -176,7 +181,7 @@ class ArtificialDatasetGenerator:
 
         lanes_around = []
         for lane in lane_candidates:
-            dfs_threshold = 0
+            dfs_threshold = 50
             candidates_future = am.dfs(lane, city_name, 0, dfs_threshold)
             candidates_past = am.dfs(lane, city_name, 0, dfs_threshold, True)
             # Merge past and future
@@ -341,7 +346,7 @@ class ArtificialDatasetGenerator:
             scene_input_by_direction_items = scene_input_by_direction[direction]
             print("\t{} -> {} | {} | {}".format(direction, person_input_items.shape, expected_output_by_direction_items.shape, scene_input_by_direction_items.shape))
 
-        person_input_to_save, expected_output_to_save, scene_input_to_save = np.zeros((0, 20, 2)), np.zeros((0, 20, 2)), np.zeros((0, 1))
+        person_input_to_save, expected_output_to_save, scene_input_to_save = np.zeros((0, self.obs_frames, 2)), np.zeros((0, self.pred_frames, 2)), np.zeros((0, 1))
         shortest_key = ""
         shortest_length = np.inf
         for direction in person_input_by_direction:
@@ -374,7 +379,7 @@ class ArtificialDatasetGenerator:
         print("")
         return person_input_to_save, expected_output_to_save, scene_input_to_save
 
-    def generate_for_city(self, city_name, save=False, validation_dataset=False, curr_lane_candidates=None):
+    def generate_for_city(self, city_name, save=False, validation_dataset=False, curr_lane_candidates=None, use_cache=False, is_reversed=False, start_from=None):
         if curr_lane_candidates is None:
             curr_lane_candidates = am.get_lane_ids_in_xy_bbox(0, 0, city_name, np.inf)
             print("generating all the lanes: {} lanes in total".format(len(curr_lane_candidates)))
@@ -383,18 +388,37 @@ class ArtificialDatasetGenerator:
         candidate_cl = am.get_cl_from_lane_seq(lanes_around, city_name)
         full_trajectories = self.get_trajectories_from_cl(candidate_cl)
         # loop and stack
-        person_input = np.zeros((0, 20, 2))
-        expected_output = np.zeros((0, 20, 2))
+        person_input = np.zeros((0, self.obs_frames, 2))
+        expected_output = np.zeros((0, self.pred_frames, 2))
         scene_input = []
         straight_counter = 0
 
-        person_input_by_direction = {"left": np.zeros((0, 20, 2)), "straight": np.zeros((0, 20, 2)), "right": np.zeros((0, 20, 2))}
-        expected_output_by_direction = {"left": np.zeros((0, 20, 2)), "straight": np.zeros((0, 20, 2)), "right": np.zeros((0, 20, 2))}
+        person_input_by_direction = {"left": np.zeros((0, self.obs_frames, 2)), "straight": np.zeros((0, self.obs_frames, 2)), "right": np.zeros((0, self.obs_frames, 2))}
+        expected_output_by_direction = {"left": np.zeros((0, self.pred_frames, 2)), "straight": np.zeros((0, self.pred_frames, 2)), "right": np.zeros((0, self.pred_frames, 2))}
         scene_input_by_direction = {"left": np.zeros((0, 1)), "straight": np.zeros((0, 1)), "right": np.zeros((0, 1))}
 
-        for lane_idx in range(len(full_trajectories)):
-            # if lane_idx > 3:
-            #     break
+        if is_reversed:
+            range_loop = range(len(full_trajectories) - 1, -1, -1)
+        else:
+            if start_from is None:
+                range_loop = range(len(full_trajectories))
+            else:
+                range_loop = range(start_from, len(full_trajectories))
+
+        for lane_idx in range_loop:
+            has_cache = False
+            cache_lane_path = os.path.join(self.cache_dir, "{}_{}".format(city_name, lane_idx))
+            if not self.dev_mode and use_cache:
+                if os.path.exists(cache_lane_path):
+                    has_cache = True
+
+            if use_cache and has_cache:
+                print("Has cache for {}, skipping.".format(lane_idx))
+                continue
+
+            if self.dev_mode and lane_idx > 3:
+                break
+
             # print("lane_idx {}".format(lane_idx))
             full_trajectory = full_trajectories[lane_idx]
 
@@ -412,13 +436,13 @@ class ArtificialDatasetGenerator:
                     direction = self.get_direction(trajectory_obs, trajectory_pred)
                     # print(direction)
                     if direction == "straight":
-                        straight_counter+=1
+                        straight_counter += 1
 
                     # save only every third straight path
                     if (direction == "straight" and straight_counter % 8 == 0) or direction != "straight":
                         if self.is_within_range(trajectory_obs, trajectory_pred) and direction in person_input_by_direction:
                             img_path = self.get_and_save_img(lane_idx, traj_nb, city_name, trajectory_obs, trajectory_pred, map_range, direction=direction,
-                                                             force_save=False, save=save, preview=False, validation_dataset=validation_dataset)
+                                                             force_save=False, save=save, preview=True if self.dev_mode else False, validation_dataset=validation_dataset)
                             img_path = np.array(img_path).astype('object')
 
                             person_input_by_direction[direction] = np.vstack((person_input_by_direction[direction], np.expand_dims(trajectory_obs, axis=0)))
@@ -428,13 +452,19 @@ class ArtificialDatasetGenerator:
                             # person_input = np.vstack((person_input, np.expand_dims(trajectory_obs, axis=0)))
                             # expected_output = np.vstack((expected_output, np.expand_dims(trajectory_pred, axis=0)))
 
-
             # social_input = np.zeros((person_input.shape[0], self.obs_frames, 64))
             # scene_input = np.array(scene_input)
 
-            # save checkpoint
-            save_every = 100
-            if (lane_idx + 1) % save_every == 0:
+            # save lane data
+            if use_cache:
+                self.save_to_pickle(cache_lane_path, [person_input_by_direction, expected_output_by_direction, scene_input_by_direction], verbose=True)
+                person_input_by_direction = {"left": np.zeros((0, self.obs_frames, 2)), "straight": np.zeros((0, self.obs_frames, 2)), "right": np.zeros((0, self.obs_frames, 2))}
+                expected_output_by_direction = {"left": np.zeros((0, self.pred_frames, 2)), "straight": np.zeros((0, self.pred_frames, 2)), "right": np.zeros((0, self.pred_frames, 2))}
+                scene_input_by_direction = {"left": np.zeros((0, 1)), "straight": np.zeros((0, 1)), "right": np.zeros((0, 1))}
+
+            # log checkpoint
+            log_every = 100
+            if (lane_idx + 1) % log_every == 0:
                 text = "Progress: {}% // ".format(int(lane_idx / len(full_trajectories) * 100))
                 # print("Progress: {}% // {}".format(int(lane_idx / len(full_trajectories) * 100), (person_input.shape, expected_output.shape, len(scene_input))))
 
@@ -444,60 +474,123 @@ class ArtificialDatasetGenerator:
                     text += " {} {} |".format(direction, items.shape)
                 print(text)
 
-        person_input, expected_output, scene_input = self.get_subset_to_save(person_input_by_direction, expected_output_by_direction, scene_input_by_direction)
-        social_input = np.zeros((person_input.shape[0], self.obs_frames, 64))
-
-        if not self.dev_mode and save:
-            path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v4"
-            if validation_dataset:
-                path = os.path.join(path, "directiondict_final_val_{}.pickle".format(city_name))
-            else:
-                path = os.path.join(path, "directiondict_final_{}.pickle".format(city_name))
-            self.save_to_pickle(path, [person_input_by_direction, expected_output_by_direction, scene_input_by_direction])
-
-        if save:
-            path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v4"
-            if validation_dataset:
-                path = os.path.join(path, "data_final_val.pickle".format(city_name))
-            else:
-                path = os.path.join(path, "data_final_{}.pickle".format(city_name))
-            self.save_to_pickle(path, [scene_input, social_input, person_input, expected_output])
+        # person_input, expected_output, scene_input = self.get_subset_to_save(person_input_by_direction, expected_output_by_direction, scene_input_by_direction)
+        # social_input = np.zeros((person_input.shape[0], self.obs_frames, 64))
+        #
+        # if not self.dev_mode and save:
+        #     path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v5"
+        #     if validation_dataset:
+        #         path = os.path.join(path, "directiondict_final_val_{}.pickle".format(city_name))
+        #     else:
+        #         path = os.path.join(path, "directiondict_final_{}.pickle".format(city_name))
+        #     self.save_to_pickle(path, [person_input_by_direction, expected_output_by_direction, scene_input_by_direction])
+        #
+        # if save:
+        #     path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v5"
+        #     if validation_dataset:
+        #         path = os.path.join(path, "data_final_val.pickle".format(city_name))
+        #     else:
+        #         path = os.path.join(path, "data_final_{}.pickle".format(city_name))
+        #     self.save_to_pickle(path, [scene_input, social_input, person_input, expected_output])
 
         # print(person_input.shape, expected_output.shape, len(scene_input))
         # return scene_input, social_input, person_input, expected_output
 
-    def save_to_pickle(self, name, array):
+    def save_to_pickle(self, name, array, verbose=True):
         # array in a form [scene_input, social_input, person_input, expected_output]
         pickle_out = open(name, "wb")
         pickle.dump(array, pickle_out, protocol=2)
         pickle_out.close()
-        print("Saved to pickle {}".format(name))
+        if verbose:
+            print("Saved to pickle {}".format(name))
+
+    def merge_cache(self, city, curr_lane_candidates=None):
+        random.seed(42)
+
+        if city == "MIA":
+            take_n_percentage = 0.2
+        else:
+            take_n_percentage = 0.5
+
+        person_input_by_direction = {"left": np.zeros((0, self.obs_frames, 2)), "straight": np.zeros((0, self.obs_frames, 2)), "right": np.zeros((0, self.obs_frames, 2))}
+        expected_output_by_direction = {"left": np.zeros((0, self.pred_frames, 2)), "straight": np.zeros((0, self.pred_frames, 2)), "right": np.zeros((0, self.pred_frames, 2))}
+        scene_input_by_direction = {"left": np.zeros((0, 1)), "straight": np.zeros((0, 1)), "right": np.zeros((0, 1))}
+
+        if curr_lane_candidates is None:
+            curr_lane_candidates = am.get_lane_ids_in_xy_bbox(0, 0, city_name, np.inf)
+        print("generating all the lanes: {} lanes in total".format(len(curr_lane_candidates)))
+
+        lanes_around = self.get_lanes_before_after(curr_lane_candidates)
+        candidate_cl = am.get_cl_from_lane_seq(lanes_around, city_name)
+        full_trajectories = self.get_trajectories_from_cl(candidate_cl)
+        print("full_trajectories {}".format(len(full_trajectories)))
+
+        for lane_idx in range(len(full_trajectories)):
+        # for lane_idx in range(20):
+            cache_lane_path = os.path.join(self.cache_dir, "{}_{}".format(city_name, lane_idx))
+            if os.path.exists(cache_lane_path):
+                pickle_in = open(cache_lane_path, "rb")
+                pickle_data = pickle.load(pickle_in)
+                [person_input_pickle, expected_output_pickle, scene_input_pickle] = pickle_data
+                for direction in ["left", "straight", "right"]:
+                    n = int(person_input_pickle[direction].shape[0])
+                    idxs = random.sample(range(n), int(n * take_n_percentage))
+                    person_input_by_direction[direction] = np.vstack((person_input_by_direction[direction], person_input_pickle[direction][idxs]))
+                    expected_output_by_direction[direction] = np.vstack((expected_output_by_direction[direction], expected_output_pickle[direction][idxs]))
+                    scene_input_by_direction[direction] = np.vstack((scene_input_by_direction[direction], scene_input_pickle[direction][idxs]))
+
+            log_every = 100
+            if (lane_idx + 1) % log_every == 0:
+                print("Progress: {}% // ".format(int(lane_idx / len(full_trajectories) * 100)))
+
+        for direction in ["left", "straight", "right"]:
+            print(f"person_input[{direction}]:{person_input_by_direction[direction].shape} | expected_output[{direction}]:{expected_output_by_direction[direction].shape} | scene_input[{direction}]:{scene_input_by_direction[direction].shape} |")
+
+        person_input, expected_output, scene_input = self.get_subset_to_save(person_input_by_direction, expected_output_by_direction, scene_input_by_direction)
+        social_input = np.zeros((person_input.shape[0], self.obs_frames, 64))
+
+        path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v5"
+        path = os.path.join(path, "data_final_v51_2050_{}.pickle".format(city))
+        self.save_to_pickle(path, [scene_input, social_input, person_input, expected_output])
+
+        return
 
 
 def merge_lists():
+    random.seed(42)
+    take_n_percentage = 1
+
     # [scene_input, social_input, person_input, expected_output]
     city_name = ["PIT", "MIA"]
-    path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v4"
-    path1 = os.path.join(path, "data_final_{}.pickle".format(city_name[0]))
-    path2 = os.path.join(path, "data_final_{}.pickle".format(city_name[1]))
+    path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v5"
+    path1 = os.path.join(path, "data_final_v51_2050_{}.pickle".format(city_name[0]))
+    path2 = os.path.join(path, "data_final_v51_2050_{}.pickle".format(city_name[1]))
+
+
 
     pickle_in = open(path1, "rb")
     data1 = pickle.load(pickle_in)
     print(data1[0].shape)
 
+
     pickle_in = open(path2, "rb")
     data2 = pickle.load(pickle_in)
     print(data2[0].shape)
 
+    n = int(data1[0].shape[0])
+    idxs1 = random.sample(range(n), int(n * take_n_percentage))
+    n = int(data2[0].shape[0])
+    idxs2 = random.sample(range(n), int(n * take_n_percentage))
+
     # scene_input = data1[0] + data2[0]
     # scene_input = np.array(scene_input, dtype='object')
-    scene_input = np.vstack((np.expand_dims(data1[0], axis=-1), np.expand_dims(data2[0], axis=-1)))
-    social_input = np.vstack((data1[1], data2[1]))
-    person_input = np.vstack((data1[2], data2[2]))
-    expected_output = np.vstack((data1[3], data2[3]))
+    scene_input = np.vstack((np.expand_dims(data1[0][idxs1], axis=-1), np.expand_dims(data2[0][idxs2], axis=-1)))
+    social_input = np.vstack((data1[1][idxs1], data2[1][idxs2]))
+    person_input = np.vstack((data1[2][idxs1], data2[2][idxs2]))
+    expected_output = np.vstack((data1[3][idxs1], data2[3][idxs2]))
 
     print(scene_input.shape, social_input.shape, person_input.shape, expected_output.shape)
-    path_res = os.path.join(path, "data_final_{}_{}_v4.pickle".format(city_name[0], city_name[1]))
+    path_res = os.path.join(path, "data_final_v51_2050_{}_{}.pickle".format(city_name[0], city_name[1]))
 
     pickle_out = open(path_res, "wb")
     pickle.dump([scene_input, social_input, person_input, expected_output], pickle_out, protocol=2)
@@ -506,24 +599,34 @@ def merge_lists():
 
 
 if __name__ == "__main__":
-    # city_name = "PIT"
-    # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=False)
-    # adg.generate_for_city(city_name, save=False, curr_lane_candidates=curr_lane_candidates)
+    city_name = "PIT"
+    adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=True)
+    adg.generate_for_city(city_name, save=False, curr_lane_candidates=curr_lane_candidates)
     # adg.generate_for_city(city_name, save=True, curr_lane_candidates=None)
 
     # %%
     ########################
     city_names = ["PIT", "MIA"]
-    if len(sys.argv) == 2 and sys.argv[1] in city_names:
+    if len(sys.argv) >= 2 and sys.argv[1] in city_names:
         city_name = sys.argv[1]
-        print("Processing for {}".format(city_name))
-        adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
-        adg.generate_for_city(city_name, save=True)
+        is_reversed = False
+        start_from = None
+        if len(sys.argv) >= 3 and sys.argv[2] in ["True", "False"]:
+            is_reversed = True if (len(sys.argv) >= 3 and sys.argv[2] == "True") else False
+        if len(sys.argv) >= 3 and sys.argv[2].isdigit():
+            start_from = int(sys.argv[2]) if sys.argv[2].isdigit() else None
+        print("Processing for {} - is_reversed: {}".format(city_name, is_reversed))
+        adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, grid_map_input=True)
+        adg.generate_for_city(city_name, save=True, use_cache=True, is_reversed=is_reversed, start_from=start_from)
+    elif len(sys.argv) >= 3 and sys.argv[1] == "merge_cache"  and sys.argv[2] in city_names:
+        city_name = sys.argv[2]
+        adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=False)
+        adg.merge_cache(city_name)
     else:
         # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
-        # city_name = "MIA"
-        # adg.generate_for_city(city_name, save=True, validation_dataset=False)
+        city_name = "MIA"
+        # adg.generate_for_city(city_name, save=False, validation_dataset=False)
 
-        merge_lists()
+        # merge_lists()
         # x = np.load("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_artificial/scene_PIT _000003_00.npy")
         # print(x.shape)

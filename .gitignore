@@ -2,7 +2,7 @@
 #######################
 *.pkl
 *.npy
-
+artificial_data_checkpoints_v5/
 # We'll ignore all of the following:
 
 dist/*
