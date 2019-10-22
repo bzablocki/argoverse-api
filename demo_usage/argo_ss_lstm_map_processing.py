@@ -11,13 +11,13 @@ import os
 # matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
-
+# %%
 class ArgoverseUtils():
 
     def __init__(self, argoverse_data, argoverse_map):
         self.argoverse_data = argoverse_data
         self.argoverse_map = argoverse_map
-        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_48x48"
+        self.img_dataset_dir = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs"
 
     def get_map_range(self, idx):
         xcenter, ycenter, _ = self.argoverse_data.get_pose(idx).translation
@@ -158,10 +158,10 @@ class ArgoverseUtils():
 
         return gray
 
-    def add_img(self, target_object, uuid):
+    def add_img(self, target_object, uuid, save=False):
         map_range = target_object['map_range']
 
-        fig, ax = self.get_plot(map_range, pix_to_pix_mapping=False)
+        fig, ax = self.get_plot(map_range, pix_to_pix_mapping=True)
         ax = self.add_map(ax, map_range)
 
         fig.canvas.draw()
@@ -181,7 +181,8 @@ class ArgoverseUtils():
         #     print("shape {}".format(data.shape))
         #     plt.show()
 
-        np.save(img_path, data)
+        if save:
+            np.save(img_path, data)
         target_object['img_path'] = img_path
 
         plt.close()
@@ -208,7 +209,7 @@ class ArgoverseUtils():
 
 class Argoverse():
 
-    def __init__(self, tracking_dataset_dir, dataset_name=None, argoverse_map=None, argoverse_loader=None):
+    def __init__(self, tracking_dataset_dir, dataset_name=None, argoverse_map=None, argoverse_loader=None, save_imgs=False):
         logger = logging.getLogger()
         logger.setLevel(logging.CRITICAL)
 
@@ -218,7 +219,7 @@ class Argoverse():
         self.dataset_prefix_name = dataset_name
 
         self.objects_from_to = self._get_objects_from_to()
-        self.valid_target_objects = self._get_valid_target_objects()
+        self.valid_target_objects = self._get_valid_target_objects(save_imgs=save_imgs)
 
     def _get_objects_from_to(self):
         objects_from_to = dict()
@@ -244,7 +245,7 @@ class Argoverse():
                             objects_from_to[obj.track_uuid]['positions10Hz'].append(np.concatenate(([idxx], np.mean(obj.bbox_city_fr, axis=0)[0:2])))
         return objects_from_to
 
-    def _get_valid_target_objects(self):
+    def _get_valid_target_objects(self, save_imgs=False):
         valid_target_objects = dict()
         for i, (uuid, target_object) in enumerate(self.objects_from_to.items()):
             utils = ArgoverseUtils(argoverse_data=self.argoverse_loader[target_object['log_index']], argoverse_map=self.am)
@@ -252,7 +253,7 @@ class Argoverse():
             new_target_object = utils.trim_and_interpolate_object(target_object)
             if new_target_object is not None:
                 new_target_object = utils.add_other_vehicles(uuid, new_target_object, self.objects_from_to)
-                new_target_object = utils.add_img(new_target_object, uuid)
+                new_target_object = utils.add_img(new_target_object, uuid, save=save_imgs)
                 new_target_object['is_stationary'] = utils.is_stationary(new_target_object)
                 # add to the final dict
                 valid_target_objects[uuid] = new_target_object
@@ -302,15 +303,30 @@ if __name__ == '__main__':
     pass
     # save_all_to_pickle()
 
-    dataset = "val"
+    dataset = "train1"
     tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/' + dataset
     ###################
-    am = ArgoverseMap()
-    argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
+    # am = ArgoverseMap()
+    # argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
     ###################
-    argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader)
+    argoverse = Argoverse(tracking_dataset_dir=tracking_dataset_dir, dataset_name=dataset, argoverse_map=am, argoverse_loader=argoverse_loader, save_imgs=True)
     # argoverse.save_to_pickle("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/{}_48x48.pickle".format(dataset))
     # %%
+    data_dict = argoverse.valid_target_objects
+    for i, (uuid, target_object)in enumerate(data_dict.items()):
+        # if uuid == "85b331ea-cc36-48e9-a543-89ba6d2cbb30":
+        #     print(i, "woww")
+        if i < 243:
+            continue
+        if i > 243:
+            break
+        # if target_object["is_stationary"]:
+        #     continue
+        #
+        print(target_object["img_path"])
+        plt.imshow(np.load(target_object["img_path"]))
+
+
     # # idx = 6
     # idx = 103
     # # idx = 85

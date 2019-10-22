@@ -33,16 +33,7 @@ import random
 
 logger = logging.getLogger()
 logger.setLevel(logging.CRITICAL)
-# %%
-# am = ArgoverseMap()
-# tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/sample/'
-# argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
-# log_index = 0
-# log_id = argoverse_loader.log_list[log_index]
-# argoverse_data = argoverse_loader[log_index]
-# city_name = argoverse_data.city_name
-# curr_lane_candidates = am.get_lane_ids_in_xy_bbox(0, 0, city_name, np.inf)
-# %%
+
 
 
 class ArtificialDatasetGenerator:
@@ -511,9 +502,9 @@ class ArtificialDatasetGenerator:
             random.seed(42)
 
         if is_validation:
-            take_n_percentage = 0.1 if city == "MIA" else 0.2
+            take_n_percentage = 0.05 if city == "MIA" else 0.1
         else:
-            take_n_percentage = 0.2 if city == "MIA" else 0.5
+            take_n_percentage = 0.15 if city == "MIA" else 0.4
 
         person_input_by_direction = {"left": np.zeros((0, self.obs_frames, 2)), "straight": np.zeros((0, self.obs_frames, 2)), "right": np.zeros((0, self.obs_frames, 2))}
         expected_output_by_direction = {"left": np.zeros((0, self.pred_frames, 2)), "straight": np.zeros((0, self.pred_frames, 2)), "right": np.zeros((0, self.pred_frames, 2))}
@@ -527,6 +518,8 @@ class ArtificialDatasetGenerator:
         candidate_cl = am.get_cl_from_lane_seq(lanes_around, city_name)
         full_trajectories = self.get_trajectories_from_cl(candidate_cl)
         print("full_trajectories {}".format(len(full_trajectories)))
+
+        scenes_omitted = 0
 
         for lane_idx in range(len(full_trajectories)):
         # for lane_idx in range(20):
@@ -542,9 +535,10 @@ class ArtificialDatasetGenerator:
                     expected_output_by_direction[direction] = np.vstack((expected_output_by_direction[direction], expected_output_pickle[direction][idxs]))
                     scene_input_by_direction[direction] = np.vstack((scene_input_by_direction[direction], scene_input_pickle[direction][idxs]))
 
+
             log_every = 100
             if (lane_idx + 1) % log_every == 0:
-                print("Progress: {}% // ".format(int(lane_idx / len(full_trajectories) * 100)))
+                print("Progress: {}% // scenes_omitted: {}".format(int(lane_idx / len(full_trajectories) * 100), scenes_omitted))
 
         for direction in ["left", "straight", "right"]:
             print(f"person_input[{direction}]:{person_input_by_direction[direction].shape} | expected_output[{direction}]:{expected_output_by_direction[direction].shape} | scene_input[{direction}]:{scene_input_by_direction[direction].shape} |")
@@ -553,10 +547,11 @@ class ArtificialDatasetGenerator:
         social_input = np.zeros((person_input.shape[0], self.obs_frames, 64))
 
         path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v5"
+        prefix = "data_final_v52_2050"
         if is_validation:
-            path = os.path.join(path, "data_final_v51_2050_val_{}.pickle".format(city))
+            path = os.path.join(path, "{}_val_{}.pickle".format(prefix, city))
         else:
-            path = os.path.join(path, "data_final_v51_2050_val_{}.pickle".format(city))
+            path = os.path.join(path, "{}_{}.pickle".format(prefix, city))
 
         self.save_to_pickle(path, [scene_input, social_input, person_input, expected_output])
 
@@ -568,12 +563,13 @@ def merge_lists(is_validation=False):
     # [scene_input, social_input, person_input, expected_output]
     city_name = ["PIT", "MIA"]
     path = "/media/bartosz/hdd1TB/workspace_hdd/argoverse-api/demo_usage/artificial_data_checkpoints_v5"
+    prefix = "data_final_v52_2050"
     if is_validation:
-        path1 = os.path.join(path, "data_final_v51_2050_val_{}.pickle".format(city_name[0]))
-        path2 = os.path.join(path, "data_final_v51_2050_val_{}.pickle".format(city_name[1]))
+        path1 = os.path.join(path, "{}_val_{}.pickle".format(prefix, city_name[0]))
+        path2 = os.path.join(path, "{}_val_{}.pickle".format(prefix, city_name[1]))
     else:
-        path1 = os.path.join(path, "data_final_v51_2050_{}.pickle".format(city_name[0]))
-        path2 = os.path.join(path, "data_final_v51_2050_{}.pickle".format(city_name[1]))
+        path1 = os.path.join(path, "{}_{}.pickle".format(prefix, city_name[0]))
+        path2 = os.path.join(path, "{}_{}.pickle".format(prefix, city_name[1]))
 
 
 
@@ -595,9 +591,9 @@ def merge_lists(is_validation=False):
 
     print(scene_input.shape, social_input.shape, person_input.shape, expected_output.shape)
     if is_validation:
-        path_res = os.path.join(path, "data_final_v51_2050_val_{}_{}.pickle".format(city_name[0], city_name[1]))
+        path_res = os.path.join(path, "{}_val_{}_{}.pickle".format(prefix, city_name[0], city_name[1]))
     else:
-        path_res = os.path.join(path, "data_final_v51_2050_{}_{}.pickle".format(city_name[0], city_name[1]))
+        path_res = os.path.join(path, "{}_{}_{}.pickle".format(prefix, city_name[0], city_name[1]))
 
     pickle_out = open(path_res, "wb")
     pickle.dump([scene_input, social_input, person_input, expected_output], pickle_out, protocol=2)
@@ -606,6 +602,17 @@ def merge_lists(is_validation=False):
 
 
 if __name__ == "__main__":
+    # %%
+    am = ArgoverseMap()
+    tracking_dataset_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-tracking/sample/'
+    argoverse_loader = ArgoverseTrackingLoader(tracking_dataset_dir)
+    log_index = 0
+    log_id = argoverse_loader.log_list[log_index]
+    argoverse_data = argoverse_loader[log_index]
+    city_name = argoverse_data.city_name
+    # curr_lane_candidates = am.get_lane_ids_in_xy_bbox(0, 0, city_name, np.inf)
+    # %%
+
     city_name = "PIT"
     # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=True)
     # adg.generate_for_city(city_name, save=False, preview=True, curr_lane_candidates=curr_lane_candidates)
@@ -629,11 +636,12 @@ if __name__ == "__main__":
         city_name = sys.argv[2]
         adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=False)
         adg.merge_cache(city_name, is_validation=True)
+    elif len(sys.argv) >= 2 and sys.argv[1] == "merge_lists":
+        merge_lists(is_validation=True)
     else:
         # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
         city_name = "MIA"
         # adg.generate_for_city(city_name, save=False, validation_dataset=False)
 
-        merge_lists(is_validation=True)
         # x = np.load("/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/imgs_artificial/scene_PIT _000003_00.npy")
         # print(x.shape)
