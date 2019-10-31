@@ -14,19 +14,6 @@ afl = ArgoverseForecastingLoader(root_dir)
 
 print('Total number of sequences:', len(afl))
 
-# %%
-# for argoverse_forecasting_data in (afl):
-#     print(argoverse_forecasting_data)
-#
-# argoverse_forecasting_data = afl[0]
-# print(argoverse_forecasting_data.track_id_list)
-# print(argoverse_forecasting_data)
-# seq_path = f"{root_dir}/2645.csv"
-# viz_sequence(afl.get(seq_path).seq_df, show=True)
-# seq_path = f"{root_dir}/3828.csv"
-# viz_sequence(afl.get(seq_path).seq_df, show=True)
-
-
 avm = ArgoverseMap()
 # %%
 
@@ -66,45 +53,61 @@ def add_map(ax, map_range, city_name):
     return ax
 
 
+
 def add_trajectory(ax, agent_obs_traj, agent_pred_traj):
     ax.scatter(agent_obs_traj[:, 0], agent_obs_traj[:, 1], c='g', zorder=20)
     ax.scatter(agent_pred_traj[:, 0], agent_pred_traj[:, 1], c='b', zorder=20)
     return ax
 
-total_avg = []
-obs_len = 20
-# for idx in range(10, len(afl)):
-for idx in range(0, 10):
-    # if idx > 20:
-    #     break
-    traj = afl[idx].agent_traj
-    agent_obs_traj = traj[:obs_len]
-    agent_pred_traj = traj[obs_len:]
-    candidate_centerlines = avm.get_candidate_centerlines_for_traj(agent_obs_traj, afl[idx].city, viz=False)
+def calculate_mean_std():
+    total_avg = []
+    obs_len = 20
+    for idx in range(0, 10):
+        traj = afl[idx].agent_traj
+        agent_obs_traj = traj[:obs_len]
+        agent_pred_traj = traj[obs_len:]
+        candidate_centerlines = avm.get_candidate_centerlines_for_traj(agent_obs_traj, afl[idx].city, viz=False)
 
-    distances = []
-    # data = agent_obs_traj
-    # data = agent_pred_traj
-    data = traj
+        distances = []
+        data = traj
 
-    for i in range(data.shape[0] - 1):
-        distances.append(np.linalg.norm(data[i] - data[i + 1], axis=0))
-    total_avg.append(np.mean(distances))
+        for i in range(data.shape[0] - 1):
+            distances.append(np.linalg.norm(data[i] - data[i + 1], axis=0))
+        total_avg.append(np.mean(distances))
+
+        city_name = afl[idx].city
+        center, map_range = get_map_range(agent_obs_traj[-1], r=40)
+
+        fig, ax = get_plot(map_range)
+        ax = add_map(ax, map_range, city_name)
+        ax = add_trajectory(ax, agent_obs_traj, agent_pred_traj)
+        ax.set_title(np.mean(distances))
+        fig.show()
+
+    print(f"Final avg {np.sum(total_avg)/len(total_avg)}, std: {np.std(total_avg)}, max: {np.max(total_avg)}")
+# calculate_mean_std()
+
+def vizualize_sample():
+    obs_len = 20
+    # for idx in range(10, len(afl)):
+    for idx in range(10, 30):
+        # if idx > 20:
+        #     break
+        traj = afl[idx].agent_traj
+        agent_obs_traj = traj[:obs_len]
+        agent_pred_traj = traj[obs_len:]
+        candidate_centerlines = avm.get_candidate_centerlines_for_traj(agent_obs_traj, afl[idx].city, viz=False)
+        city_name = afl[idx].city
+        center, map_range = get_map_range(agent_obs_traj[-1], r=40)
+
+        fig, ax = get_plot(map_range)
+        ax = add_map(ax, map_range, city_name)
+        ax = add_trajectory(ax, agent_obs_traj, agent_pred_traj)
+        ax.set_title(str(idx))
+        fig.show()
+# vizualize_sample()
 
 
-    city_name = afl[idx].city
-    # print(city_name)
-    # print(agent_obs_traj[0])
-    center, map_range = get_map_range(agent_obs_traj[-1], r=40)
-
-
-    fig, ax = get_plot(map_range)
-    ax = add_map(ax, map_range, city_name)
-    ax = add_trajectory(ax, agent_obs_traj, agent_pred_traj)
-    ax.set_title(np.mean(distances))
-    fig.show()
-
-print(f"Final avg {np.sum(total_avg)/len(total_avg)}, std: {np.std(total_avg)}, max: {np.max(total_avg)}")
 
 
 # seq_path = f"{root_dir}/3828.csv"

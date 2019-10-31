@@ -391,12 +391,12 @@ class ArtificialDatasetGenerator:
         else:
             random.seed(42)
 
-        merge_every = 5
+        merge_every = 1500
 
         if is_validation:
-            take_n_percentage = 0.05 if city == "MIA" else 0.1
+            take_n_percentage = 0.005 if city == "MIA" else 0.005
         else:
-            take_n_percentage = 0.15 if city == "MIA" else 0.4
+            take_n_percentage = 0.3 if city == "MIA" else 0.4
 
 
         if curr_lane_candidates is None:
@@ -412,8 +412,8 @@ class ArtificialDatasetGenerator:
         person_input_by_direction_final, expected_output_by_direction_final, scene_input_by_direction_final = self.get_new_io_dicts()
         person_input_tmp, expected_output_tmp, scene_input_tmp = self.get_new_io_dicts()
 
-        # for lane_idx in range(len(full_trajectories)):
-        for lane_idx in range(20):
+        for lane_idx in range(len(full_trajectories)):
+        # for lane_idx in range(20):
 
             cache_lane_path = os.path.join(self.cache_dir, "{}_{}".format(city_name, lane_idx))
             if os.path.exists(cache_lane_path):
@@ -431,19 +431,20 @@ class ArtificialDatasetGenerator:
                 for direction in ["left", "straight", "right"]:
                     n = int(person_input_tmp[direction].shape[0])
                     idxs = random.sample(range(n), int(n * take_n_percentage))
-                    print(f"Before {direction}: {person_input_tmp[direction].shape[0]} |\t After: {person_input_tmp[direction][idxs].shape[0]}")
+                    # print(f"Before {direction}: {person_input_tmp[direction].shape[0]} |\t After: {person_input_tmp[direction][idxs].shape[0]}")
                     person_input_by_direction_final[direction] = np.vstack((person_input_by_direction_final[direction], person_input_tmp[direction][idxs]))
                     expected_output_by_direction_final[direction] = np.vstack((expected_output_by_direction_final[direction], expected_output_tmp[direction][idxs]))
                     scene_input_by_direction_final[direction] = np.vstack((scene_input_by_direction_final[direction], scene_input_tmp[direction][idxs]))
                 print("")
                 person_input_tmp, expected_output_tmp, scene_input_tmp = self.get_new_io_dicts()
 
-            log_every = 100
+            log_every = 1500
             if (lane_idx + 1) % log_every == 0:
                 print("Progress: {}% ".format(int(lane_idx / len(full_trajectories) * 100)))
 
-        for direction in ["left", "straight", "right"]:
-            print(f"person_input[{direction}]:{person_input_by_direction_final[direction].shape} | expected_output[{direction}]:{expected_output_by_direction_final[direction].shape} | scene_input[{direction}]:{scene_input_by_direction_final[direction].shape} |")
+                for direction in ["left", "straight", "right"]:
+                    print(f"person_input[{direction}]:{person_input_by_direction_final[direction].shape} | expected_output:{expected_output_by_direction_final[direction].shape} | scene_input:{scene_input_by_direction_final[direction].shape} |")
+                print("")
 
         person_input, expected_output, scene_input = self.get_subset_to_save(person_input_by_direction_final, expected_output_by_direction_final, scene_input_by_direction_final)
         social_input = np.zeros((person_input.shape[0], self.obs_frames, 64))
@@ -612,11 +613,11 @@ if __name__ == "__main__":
     # curr_lane_candidates = am.get_lane_ids_in_xy_bbox(0, 0, city_name, np.inf)
 
     city_name = "MIA"
-    adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=False)
+    # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=False)
     # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=True)
     # adg.generate_for_city(city_name, save=False, preview=False, curr_lane_candidates=curr_lane_candidates)
     # adg.generate_for_city(city_name, save=True, curr_lane_candidates=None)
-    adg.merge_cache(city_name, is_validation=False, save=False)
+    # adg.merge_cache(city_name, is_validation=False, save=False)
 
     # %
     ########################
@@ -635,9 +636,9 @@ if __name__ == "__main__":
     elif len(sys.argv) >= 3 and sys.argv[1] == "merge_cache" and sys.argv[2] in city_names:
         city_name = sys.argv[2]
         adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader, dev_mode=False)
-        adg.merge_cache(city_name, is_validation=False)
+        adg.merge_cache(city_name, is_validation=True, save=True)
     elif len(sys.argv) >= 2 and sys.argv[1] == "merge_lists":
-        merge_lists(is_validation=False)
+        merge_lists(is_validation=True)
     else:
         # adg = ArtificialDatasetGenerator(argoverse_map=am, argoverse_loader=argoverse_loader)
         city_name = "MIA"
