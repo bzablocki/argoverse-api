@@ -1,13 +1,13 @@
-import sys
-from sklearn.model_selection import train_test_split
-import os
-import numpy as np
-import pickle
-from matplotlib.patches import Polygon
-import matplotlib.pyplot as plt
-from argoverse.map_representation.map_api import ArgoverseMap
-from argoverse.visualization.visualize_sequences import viz_sequence
 from argoverse.data_loading.argoverse_forecasting_loader import ArgoverseForecastingLoader
+from argoverse.visualization.visualize_sequences import viz_sequence
+from argoverse.map_representation.map_api import ArgoverseMap
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+import pickle
+import numpy as np
+import os
+from sklearn.model_selection import train_test_split
+import sys
 import matplotlib
 matplotlib.use('Agg')
 # %%
@@ -15,6 +15,7 @@ matplotlib.use('Agg')
 
 class ForecastingDatasetProcessor():
     def __init__(self, root_dir=None, afl=None, avm=None):
+        # self.root_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-forecasting/train/data' if root_dir is None else root_dir
         self.root_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-forecasting/train/data' if root_dir is None else root_dir
         self.pickle_path = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/ss_lstm_format_argo_forecasting_v1{validation_flag}.pickle"
         self.pickle_cache_path = "/media/bartosz/hdd1TB/workspace_hdd/SS-LSTM/data/argoverse/cacheio/ss_lstm_format_argo_forecasting_v1_{range}.pickle"
@@ -262,6 +263,14 @@ class ForecastingDatasetProcessor():
 
         return img_path
 
+    @staticmethod
+    def normalize_positions(positions, map_range):
+        [xmin, xmax, ymin, ymax] = map_range
+        p_copy = np.copy(positions)
+        p_copy[..., 0] = (p_copy[..., 0] - xmin) / (xmax - xmin)
+        p_copy[..., 1] = (p_copy[..., 1] - ymin) / (ymax - ymin)
+        return p_copy
+
     def generate_network_data(self, dev_mode=True, save_to_pickle=False, desired_range=None):
         scene_input, social_input, person_input, expected_output = np.zeros((0, 1)), np.zeros((0, self.obs, 64)), np.zeros((0, self.obs, 2)), np.zeros((0, self.pred, 2))
 
@@ -281,10 +290,10 @@ class ForecastingDatasetProcessor():
             # city_name = forecasting_entry.city
             city_name = self.get_city_name(forecasting_entry)
             center, map_range = self.get_map_range(agent_obs_traj[-1], r=40)
-            # if dev_mode:  # not
-            # if not dev_mode:  # not
-            person_input = np.vstack((person_input, np.expand_dims(agent_obs_traj, axis=0)))
-            expected_output = np.vstack((expected_output, np.expand_dims(agent_pred_traj, axis=0)))
+
+            agent_obs_traj_norm, agent_pred_traj_norm = self.normalize_positions(agent_obs_traj, map_range), self.normalize_positions(agent_pred_traj, map_range)
+            person_input = np.vstack((person_input, np.expand_dims(agent_obs_traj_norm, axis=0)))
+            expected_output = np.vstack((expected_output, np.expand_dims(agent_pred_traj_norm, axis=0)))
 
             social_input_single = self.get_social_input_single(forecasting_entry, agent_obs_traj, map_range)
             social_input = np.vstack((social_input, np.reshape(social_input_single, (1, self.obs, -1))))
@@ -307,7 +316,7 @@ class ForecastingDatasetProcessor():
         return self.pickle_cache_path.format(range=f"{desired_range[0]}_{desired_range[-1]}")
 
     def get_range_from_segment(self, segment_nb):
-        split_every = 20000
+        split_every = 10000
         total_nb_of_segments = self.total_nb_of_segments
         range_start = segment_nb * split_every
         if range_start >= total_nb_of_segments:
@@ -320,12 +329,12 @@ class ForecastingDatasetProcessor():
 
     def merge_cache(self):
         scene_input, social_input, person_input, expected_output = np.zeros((0, 1)), np.zeros((0, self.obs, 64)), np.zeros((0, self.obs, 2)), np.zeros((0, self.pred, 2))
-        for i in range(0, 11):
+        for i in range(0, 21):
             pckl_path = self.get_cache_path(self.get_range_from_segment(i))
             pickle_in = open(pckl_path, "rb")
             [scene_input_pckl, social_input_pckl, person_input_pckl, expected_output_pckl] = pickle.load(pickle_in)
 
-            if i == 10:  # split last segment and use for val dataset
+            if i == 20:  # split last segment and use for val dataset
                 scene_input_pckl, scene_input_val, social_input_pckl, social_input_val, person_input_pckl, person_input_val, expected_output_pckl, expected_output_val = train_test_split(
                     scene_input_pckl, social_input_pckl, person_input_pckl, expected_output_pckl, test_size=0.2, random_state=42)
                 print("Generated val shapes: {}".format((scene_input_val.shape, social_input_val.shape, person_input_val.shape, expected_output_val.shape)))
@@ -342,11 +351,6 @@ class ForecastingDatasetProcessor():
 
 
 def main():
-    # ''''''''''''''''
-    # root_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-forecasting/train/data'
-    # afl = ArgoverseForecastingLoader(root_dir)
-    # avm = ArgoverseMap()
-    # ''''''''''''''''
     ''' Select which segment to cache '''
     if len(sys.argv) >= 3 and sys.argv[1] == "split_to_cache" and sys.argv[2].isdigit():
         fdp = ForecastingDatasetProcessor()
@@ -356,17 +360,20 @@ def main():
             print(f"Cache {final_cache_path} already exists")
             return 0
 
-        print(f"Generating cache from {range_start} to {range_end}")
+        print(f"Generating cache from {desired_range[0]} to {desired_range[-1]}")
         fdp.generate_network_data(dev_mode=False, save_to_pickle=True, desired_range=desired_range)
 
-    if len(sys.argv) >= 2 and sys.argv[1] == "merge_cache":
+    elif len(sys.argv) >= 2 and sys.argv[1] == "merge_cache":
         print("Merging cache")
         fdp = ForecastingDatasetProcessor()
         fdp.merge_cache()
     else:
-        fdp = ForecastingDatasetProcessor()
-        fdp.generate_network_data(dev_mode=False, save_to_pickle=True, desired_range=range(20000, 20010))
+        fdp = ForecastingDatasetProcessor(afl=afl, avm=avm)
+        scene_input, social_input, person_input, expected_output = fdp.generate_network_data(dev_mode=False, save_to_pickle=False, desired_range=range(1, 10))
 
 
 if __name__ == '__main__':
+    # root_dir = '/media/bartosz/hdd1TB/workspace_hdd/datasets/argodataset/argoverse-forecasting/train/data'
+    # afl = ArgoverseForecastingLoader(root_dir)
+    # avm = ArgoverseMap()
     main()
