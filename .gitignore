@@ -18,7 +18,7 @@ city_archive.json
 .mypy_cache
 .coverage
 htmlcov
-
+/demo_usage/my_vizualization/
 utils/__pycache__/*
 prediction/__pycache__/*
 map_files/__pycache__/*
